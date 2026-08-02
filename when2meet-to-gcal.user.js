@@ -18,6 +18,10 @@
 
   const PRESETS = [30, 60, 90, 120];
   const STORAGE_DURATION = "w2m2gcal.durationMinutes";
+  const STORAGE_POS = "w2m2gcal.panelPos";
+  const STORAGE_MIN = "w2m2gcal.panelMinimized";
+  const STORAGE_MIN_POS = "w2m2gcal.panelMinPos";
+  const CAL_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>`;
   const CLS = "w2m2gcal-hi";
   const CLS_SEL = "w2m2gcal-sel";
   const ROOT_ID = "w2m2gcal-panel";
@@ -250,6 +254,24 @@
   let durationMinutes = 60;
   let stepMinutes = 15;
   let panelNotice = "";
+  let lastErrorMsg = null;
+  let panelMinimized = false;
+  try {
+    panelMinimized = !!GM_getValue(STORAGE_MIN, false);
+  } catch {
+    panelMinimized = false;
+  }
+
+  function setMinimized(next) {
+    panelMinimized = !!next;
+    try {
+      GM_setValue(STORAGE_MIN, panelMinimized);
+    } catch {
+      /* ignore */
+    }
+    if (lastErrorMsg) renderError(lastErrorMsg);
+    else renderPanelBody();
+  }
 
   function loadDuration() {
     try {
@@ -341,7 +363,7 @@
     s.textContent = `
       #${ROOT_ID} {
         position: fixed;
-        right: 16px;
+        left: 16px;
         bottom: 16px;
         z-index: 2147483646;
         font: 13px/1.4 system-ui, sans-serif;
@@ -356,7 +378,58 @@
         color: #1c1917;
         box-shadow: 0 10px 30px rgba(28, 25, 23, 0.2);
       }
-      #${ROOT_ID} h2 { font-size: 14px; margin: 0 0 8px; }
+      #${ROOT_ID}.w2m2gcal-minimized {
+        width: auto;
+        max-height: none;
+        padding: 0;
+        overflow: visible;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+      }
+      #${ROOT_ID} .w2m2gcal-chrome {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        margin: 0 0 8px;
+      }
+      #${ROOT_ID} h2.w2m2gcal-drag {
+        flex: 1;
+        font-size: 14px;
+        margin: 0;
+        cursor: grab;
+        user-select: none;
+        touch-action: none;
+      }
+      #${ROOT_ID} h2.w2m2gcal-drag:active,
+      #${ROOT_ID} .w2m2gcal-fab:active { cursor: grabbing; }
+      #${ROOT_ID} button.w2m2gcal-min {
+        flex: none;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        line-height: 1;
+        font-size: 16px;
+      }
+      #${ROOT_ID} button.w2m2gcal-fab {
+        width: 52px;
+        height: 52px;
+        border-radius: 999px;
+        padding: 0;
+        border: none;
+        background: #0f766e;
+        color: #fff;
+        box-shadow: 0 8px 20px rgba(28, 25, 23, 0.25);
+        cursor: grab;
+        display: grid;
+        place-items: center;
+        touch-action: none;
+        user-select: none;
+      }
+      #${ROOT_ID} button.w2m2gcal-fab svg {
+        display: block;
+        pointer-events: none;
+      }
       #${ROOT_ID} .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; }
       #${ROOT_ID} button, #${ROOT_ID} input {
         font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid #a8a29e;
@@ -366,7 +439,14 @@
       #${ROOT_ID} button:disabled { opacity: 0.45; cursor: not-allowed; }
       #${ROOT_ID} .err { color: #9a3412; margin: 6px 0; }
       #${ROOT_ID} .muted { color: #57534e; font-size: 12px; }
-      #${ROOT_ID} ul.ties { list-style: none; padding: 0; margin: 6px 0; }
+      #${ROOT_ID} ul.ties {
+        list-style: none;
+        padding: 0;
+        margin: 6px 0;
+        max-height: min(220px, 40vh);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
       #${ROOT_ID} ul.ties li button {
         width: 100%; text-align: left; background: #fafaf9; margin-bottom: 4px;
       }
@@ -385,13 +465,125 @@
       root.id = ROOT_ID;
       root.setAttribute("aria-label", "when2meet to Google Calendar");
       document.body.appendChild(root);
+      applySavedPosition(root);
     }
     return root;
   }
 
+  function applySavedPosition(root) {
+    try {
+      const pos = GM_getValue(STORAGE_POS, null);
+      if (!pos || !Number.isFinite(pos.left) || !Number.isFinite(pos.top)) return;
+      root.style.left = `${pos.left}px`;
+      root.style.top = `${pos.top}px`;
+      root.style.right = "auto";
+      root.style.bottom = "auto";
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function applyMinimizedPosition(root) {
+    try {
+      const pos = GM_getValue(STORAGE_MIN_POS, null);
+      if (pos && Number.isFinite(pos.left) && Number.isFinite(pos.bottom)) {
+        root.style.left = `${pos.left}px`;
+        root.style.bottom = `${pos.bottom}px`;
+        root.style.top = "auto";
+        root.style.right = "auto";
+        return;
+      }
+    } catch {
+      /* ignore */
+    }
+    // Default / first minimize: pin to bottom-left (not top-left of the expanded panel)
+    root.style.left = "16px";
+    root.style.bottom = "16px";
+    root.style.top = "auto";
+    root.style.right = "auto";
+  }
+
+  function enableDrag(root) {
+    const handle = root.querySelector(".w2m2gcal-drag");
+    if (!handle || handle.dataset.dragBound) return;
+    handle.dataset.dragBound = "1";
+    if (!handle.title) handle.title = "Drag to move";
+    const isFab = handle.classList.contains("w2m2gcal-fab");
+    handle.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      const rect = root.getBoundingClientRect();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const origL = rect.left;
+      const origT = rect.top;
+      let moved = false;
+      root.style.left = `${origL}px`;
+      root.style.top = `${origT}px`;
+      root.style.right = "auto";
+      root.style.bottom = "auto";
+      handle.setPointerCapture(e.pointerId);
+      const onMove = (ev) => {
+        if (Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) > 4) moved = true;
+        const maxL = Math.max(0, window.innerWidth - root.offsetWidth);
+        const maxT = Math.max(0, window.innerHeight - root.offsetHeight);
+        const left = Math.max(0, Math.min(maxL, origL + ev.clientX - startX));
+        const top = Math.max(0, Math.min(maxT, origT + ev.clientY - startY));
+        root.style.left = `${left}px`;
+        root.style.top = `${top}px`;
+      };
+      const onUp = (ev) => {
+        handle.releasePointerCapture(ev.pointerId);
+        handle.removeEventListener("pointermove", onMove);
+        handle.removeEventListener("pointerup", onUp);
+        const r = root.getBoundingClientRect();
+        try {
+          if (isFab) {
+            root.style.left = `${r.left}px`;
+            root.style.bottom = `${Math.max(0, window.innerHeight - r.bottom)}px`;
+            root.style.top = "auto";
+            root.style.right = "auto";
+            GM_setValue(STORAGE_MIN_POS, {
+              left: r.left,
+              bottom: Math.max(0, window.innerHeight - r.bottom),
+            });
+          } else {
+            GM_setValue(STORAGE_POS, { left: r.left, top: r.top });
+          }
+        } catch {
+          /* ignore */
+        }
+        if (!moved && isFab) setMinimized(false);
+      };
+      handle.addEventListener("pointermove", onMove);
+      handle.addEventListener("pointerup", onUp);
+    });
+  }
+
+  function renderMinimized(root) {
+    root.classList.add("w2m2gcal-minimized");
+    applyMinimizedPosition(root);
+    root.innerHTML = `<button type="button" class="w2m2gcal-fab w2m2gcal-drag" aria-expanded="false" aria-label="Expand when2meet to Google Calendar" title="Open panel (drag to move)">${CAL_ICON}</button>`;
+    enableDrag(root);
+  }
+
   function renderError(msg) {
+    lastErrorMsg = msg;
     const root = mountPanel();
-    root.innerHTML = `<h2>when2meet → Google Calendar</h2><p class="err" role="alert">${escapeHtml(msg)}</p>`;
+    if (panelMinimized) {
+      renderMinimized(root);
+      return;
+    }
+    root.classList.remove("w2m2gcal-minimized");
+    root.innerHTML = `
+      <div class="w2m2gcal-chrome">
+        <h2 class="w2m2gcal-drag">when2meet → Google Calendar</h2>
+        <button type="button" class="w2m2gcal-min" aria-label="Minimize panel" title="Minimize">−</button>
+      </div>
+      <p class="err" role="alert">${escapeHtml(msg)}</p>`;
+    applySavedPosition(root);
+    root.querySelector(".w2m2gcal-min")?.addEventListener("click", () => setMinimized(true));
+    enableDrag(root);
     clearHighlights();
   }
 
@@ -404,7 +596,14 @@
   }
 
   function renderPanelBody() {
+    lastErrorMsg = null;
     const root = mountPanel();
+    if (panelMinimized) {
+      renderMinimized(root);
+      return;
+    }
+    root.classList.remove("w2m2gcal-minimized");
+    applySavedPosition(root);
     const tz = resolveGridTimeZone();
     const effective = snapDuration(durationMinutes, stepMinutes);
     const canOpen = !!selected && !!tz;
@@ -440,7 +639,10 @@
     const notice = panelNotice ? `<p class="err" role="alert">${escapeHtml(panelNotice)}</p>` : "";
 
     root.innerHTML = `
-      <h2>when2meet → Google Calendar</h2>
+      <div class="w2m2gcal-chrome">
+        <h2 class="w2m2gcal-drag">when2meet → Google Calendar</h2>
+        <button type="button" class="w2m2gcal-min" aria-label="Minimize panel" title="Minimize">−</button>
+      </div>
       <div class="row" role="group" aria-label="Meeting duration">
         ${PRESETS.map(
           (p) =>
@@ -457,6 +659,7 @@
       </div>
     `;
 
+    root.querySelector(".w2m2gcal-min")?.addEventListener("click", () => setMinimized(true));
     root.querySelectorAll("button.chip").forEach((btn) => {
       btn.addEventListener("click", () => {
         durationMinutes = Number(btn.getAttribute("data-dur"));
@@ -507,6 +710,7 @@
         }
       });
     }
+    enableDrag(root);
   }
 
   function hookRecolor() {
