@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         when2meet → Google Calendar
 // @namespace    https://github.com/dytsou/when2meet-to-gcal
-// @version      0.1.1
+// @version      0.1.2
 // @description  Highlight max continuous-overlap windows and open a Google Calendar TEMPLATE draft
 // @author       dytsou
 // @match        https://www.when2meet.com/*
@@ -340,14 +340,21 @@
     s.id = "w2m2gcal-style";
     s.textContent = `
       #${ROOT_ID} {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        z-index: 2147483646;
         font: 13px/1.4 system-ui, sans-serif;
         background: #fffdf9;
         border: 1px solid #d6d3d1;
         border-radius: 8px;
         padding: 10px 12px;
-        margin: 8px 0;
-        max-width: 420px;
+        margin: 0;
+        width: min(360px, calc(100vw - 32px));
+        max-height: calc(100vh - 32px);
+        overflow: auto;
         color: #1c1917;
+        box-shadow: 0 10px 30px rgba(28, 25, 23, 0.2);
       }
       #${ROOT_ID} h2 { font-size: 14px; margin: 0 0 8px; }
       #${ROOT_ID} .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; }
@@ -377,8 +384,7 @@
       root = document.createElement("section");
       root.id = ROOT_ID;
       root.setAttribute("aria-label", "when2meet to Google Calendar");
-      const host = document.getElementById("MainBody") || document.getElementById("GroupGrid") || document.body;
-      host.insertBefore(root, host.firstChild);
+      document.body.appendChild(root);
     }
     return root;
   }
