@@ -122,6 +122,9 @@ export function buildMatrixFromGlobals(g) {
 
   const slots = times.map((t, i) => {
     const epoch = Number(t);
+    if (!Number.isFinite(epoch)) {
+      return { epoch: NaN, attendees: [], index: i, invalid: true };
+    }
     const raw = available[i];
     let attendees = [];
     if (Array.isArray(raw)) attendees = raw.map(String);
@@ -130,6 +133,9 @@ export function buildMatrixFromGlobals(g) {
     if (idSet.size) attendees = attendees.filter((id) => idSet.has(id));
     return { epoch, attendees, index: i };
   });
+  if (slots.some((s) => s.invalid || !Number.isFinite(s.epoch))) {
+    return { ok: false, error: "TimeOfSlot contains invalid timestamps" };
+  }
 
   let stepMinutes = 15;
   if (slots.length >= 2) {

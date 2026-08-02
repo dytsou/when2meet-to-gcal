@@ -44,6 +44,16 @@ describe("buildMatrixFromGlobals", () => {
     assert.equal(r.slots.length, 3);
     assert.equal(r.stepMinutes, 15);
   });
+  it("fails on non-finite TimeOfSlot epochs", () => {
+    const r = buildMatrixFromGlobals({
+      PeopleNames: ["Alice"],
+      PeopleIDs: ["1"],
+      TimeOfSlot: [1000, "nope", 2800],
+      AvailableAtSlot: [["1"], ["1"], ["1"]],
+    });
+    assert.equal(r.ok, false);
+    assert.match(r.error, /invalid timestamps/i);
+  });
 });
 
 /** AE1: density trap vs continuous full hour */

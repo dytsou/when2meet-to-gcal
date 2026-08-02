@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         when2meet → Google Calendar
 // @namespace    https://github.com/when2meet-to-gcal
-// @version      0.1.0
+// @version      0.1.1
 // @description  Highlight max continuous-overlap windows and open a Google Calendar TEMPLATE draft
 // @author       when2meet-to-gcal
 // @match        https://www.when2meet.com/*
@@ -48,6 +48,9 @@
     const idSet = new Set(people.map((p) => p.id));
     const slots = times.map((t, i) => {
       const epoch = Number(t);
+      if (!Number.isFinite(epoch)) {
+        return { epoch: NaN, attendees: [], index: i, invalid: true };
+      }
       const raw = available[i];
       let attendees = [];
       if (Array.isArray(raw)) attendees = raw.map(String);
@@ -56,6 +59,9 @@
       if (idSet.size) attendees = attendees.filter((id) => idSet.has(id));
       return { epoch, attendees, index: i };
     });
+    if (slots.some((s) => s.invalid || !Number.isFinite(s.epoch))) {
+      return { ok: false, error: "TimeOfSlot contains invalid timestamps" };
+    }
 
     let stepMinutes = 15;
     if (slots.length >= 2) {
@@ -189,19 +195,14 @@
   function selfCheckSlots(slots) {
     const sample = slots.filter((_, i) => i % Math.max(1, Math.floor(slots.length / 5)) === 0).slice(0, 5);
     if (!sample.length) return { ok: false, error: "No slots to verify against the grid" };
-    let found = 0;
     for (const s of sample) {
-      const epoch = s.epoch;
-      const el =
-        document.getElementById("GroupTime" + epoch) ||
-        document.getElementById("GroupTime" + String(epoch));
-      if (el) found++;
-    }
-    if (found === 0) {
-      return {
-        ok: false,
-        error: "Could not match TimeOfSlot ids to GroupTime cells — page structure may have changed",
-      };
+      const el = document.getElementById("GroupTime" + s.epoch);
+      if (!el) {
+        return {
+          ok: false,
+          error: "Could not match TimeOfSlot ids to GroupTime cells — page structure may have changed",
+        };
+      }
     }
     return { ok: true };
   }
@@ -212,25 +213,33 @@
     const sel =
       document.querySelector('select[name*="time" i], select[id*="time" i], select[id*="TimeZone" i]') ||
       document.querySelector("#TimeZoneSelect, #timezone, select.timezone");
-    if (sel && sel.value && /[A-Za-z]+\/[A-Za-z_]+/.test(sel.value)) probes.push(sel.value);
+    if (sel && sel.value && /[A-Za-z]+\/[A-Za-z_]+/.test(sel.value)) probes.push(sel.value.trim());
     try {
       const sp = new URLSearchParams(location.search);
       for (const key of ["tz", "timezone", "ctz"]) {
         const v = sp.get(key);
-        if (v && /[A-Za-z]+\/[A-Za-z_]+/.test(v)) probes.push(v);
+        if (v && /[A-Za-z]+\/[A-Za-z_]+/.test(v)) probes.push(v.trim());
       }
     } catch {
       /* ignore */
     }
-    if (typeof w.TimeZone === "string" && /[A-Za-z]+\/[A-Za-z_]+/.test(w.TimeZone)) probes.push(w.TimeZone);
-    // Grid is shown in viewer-local time on common when2meet setups
+    if (typeof w.TimeZone === "string" && /[A-Za-z]+\/[A-Za-z_]+/.test(w.TimeZone)) {
+      probes.push(w.TimeZone.trim());
+    }
+    // Prefer an explicit page/URL zone. Only use Intl when it matches a page control
+    // (grid display zone ≈ viewer-local) — otherwise leave null so R7 can block.
+    let intl = null;
     try {
-      const intl = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      if (intl) probes.push(intl);
+      intl = Intl.DateTimeFormat().resolvedOptions().timeZone || null;
     } catch {
       /* ignore */
     }
-    return probes.find(Boolean) || null;
+    const pageZone = probes.find(Boolean) || null;
+    if (pageZone) return pageZone;
+    if (intl && sel && String(sel.value).includes(intl.split("/")[1] || "")) return intl;
+    // when2meet commonly renders the grid in the viewer's local zone with no IANA control
+    if (intl && !sel) return intl;
+    return null;
   }
 
   // --- UI state ---
@@ -240,6 +249,7 @@
   let selected = null;
   let durationMinutes = 60;
   let stepMinutes = 15;
+  let panelNotice = "";
 
   function loadDuration() {
     try {
@@ -287,6 +297,7 @@
 
   function recompute() {
     selected = null;
+    panelNotice = "";
     if (!matrix) {
       candidates = [];
       return;
@@ -296,6 +307,31 @@
     if (candidates.length === 1) selected = candidates[0];
     paintCandidates();
     renderPanelBody();
+  }
+
+  function candidateContainingEpoch(epoch) {
+    return candidates.find((c) =>
+      (c.slotIndexes || []).some((idx) => matrix?.slots[idx]?.epoch === epoch),
+    );
+  }
+
+  function onGridClick(ev) {
+    const cell = ev.target?.closest?.('[id^="GroupTime"]');
+    if (!cell || !cell.classList.contains(CLS)) return;
+    const epoch = Number(String(cell.id).replace(/^GroupTime/, ""));
+    if (!Number.isFinite(epoch)) return;
+    const hit = candidateContainingEpoch(epoch);
+    if (!hit) return;
+    panelNotice = "";
+    selected = hit;
+    paintCandidates();
+    renderPanelBody();
+  }
+
+  function hookGridClicks() {
+    if (document.documentElement.dataset.w2m2gcalClick) return;
+    document.documentElement.dataset.w2m2gcalClick = "1";
+    document.addEventListener("click", onGridClick, true);
   }
 
   function ensureStyles() {
@@ -328,8 +364,8 @@
         width: 100%; text-align: left; background: #fafaf9; margin-bottom: 4px;
       }
       #${ROOT_ID} ul.ties li button[aria-pressed="true"] { outline: 2px solid #0f766e; }
-      .${CLS} { outline: 2px solid #0f766e !important; outline-offset: -2px; }
-      .${CLS_SEL} { outline: 3px solid #c2410c !important; outline-offset: -2px; box-shadow: inset 0 0 0 2px #fdba74; }
+      .${CLS} { outline: 2px solid #0f766e !important; outline-offset: -2px; cursor: pointer; }
+      .${CLS_SEL} { outline: 3px solid #c2410c !important; outline-offset: -2px; box-shadow: inset 0 0 0 2px #fdba74; cursor: pointer; }
     `;
     document.head.appendChild(s);
   }
@@ -392,8 +428,10 @@
         : selected && !tz
           ? `<p class="err" role="alert">Could not resolve the grid display timezone — calendar open blocked.</p>`
           : multi
-            ? `<p class="muted">Select a tied window to enable Google Calendar.</p>`
+            ? `<p class="muted">Select a tied window (list or highlighted grid) to enable Google Calendar.</p>`
             : "";
+
+    const notice = panelNotice ? `<p class="err" role="alert">${escapeHtml(panelNotice)}</p>` : "";
 
     root.innerHTML = `
       <h2>when2meet → Google Calendar</h2>
@@ -407,6 +445,7 @@
       <p class="muted" id="w2m2gcal-snap">Effective duration: <strong>${effective} min</strong> (snapped to ${stepMinutes}-min grid)</p>
       ${tiesHtml}
       ${preview}
+      ${notice}
       <div class="row">
         <button type="button" class="primary" id="w2m2gcal-open" ${canOpen ? "" : "disabled"}>Open Google Calendar</button>
       </div>
@@ -421,6 +460,12 @@
     });
     const custom = root.querySelector("#w2m2gcal-custom");
     if (custom) {
+      const syncSnapLabel = () => {
+        const eff = snapDuration(Number(custom.value), stepMinutes);
+        const strong = root.querySelector("#w2m2gcal-snap strong");
+        if (strong) strong.textContent = `${eff} min`;
+      };
+      custom.addEventListener("input", syncSnapLabel);
       custom.addEventListener("change", () => {
         durationMinutes = snapDuration(Number(custom.value), stepMinutes);
         custom.value = String(durationMinutes);
@@ -432,6 +477,7 @@
       btn.addEventListener("click", () => {
         const i = Number(btn.getAttribute("data-idx"));
         selected = candidates[i] || null;
+        panelNotice = "";
         paintCandidates();
         renderPanelBody();
       });
@@ -440,7 +486,7 @@
     if (openBtn) {
       openBtn.addEventListener("click", () => {
         if (!selected || !tz) return;
-        const title = document.title.replace(/\s*[–-|].*$/, "").trim() || "when2meet meeting";
+        const title = document.title.replace(/\s*[–|\-].*$/, "").trim() || "when2meet meeting";
         const url = buildTemplateUrl({
           title,
           startEpoch: selected.startEpoch,
@@ -448,7 +494,11 @@
           timeZone: tz,
           details: `Scheduled from when2meet\n${location.href}`,
         });
-        window.open(url, "_blank", "noopener,noreferrer");
+        const win = window.open(url, "_blank", "noopener,noreferrer");
+        if (!win) {
+          panelNotice = "Pop-up blocked — allow pop-ups for this site, then try again.";
+          renderPanelBody();
+        }
       });
     }
   }
@@ -487,6 +537,7 @@
     stepMinutes = built.stepMinutes;
     durationMinutes = snapDuration(durationMinutes, stepMinutes);
     hookRecolor();
+    hookGridClicks();
     recompute();
   }
 
