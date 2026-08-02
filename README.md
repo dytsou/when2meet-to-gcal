@@ -19,7 +19,8 @@ Tampermonkey userscript: on a [when2meet](https://www.when2meet.com) Group resul
 ## Automated tests
 
 ```bash
-node --test test/rank.test.mjs test/gcal.test.mjs
+npm test
+npm run check
 ```
 
 CI runs the same on push/PR to `main` (Node 20 and 22). Covers continuous-overlap ranking, tie thinning, duration snap, extract validation, and TEMPLATE URL encoding.
