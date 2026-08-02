@@ -20,5 +20,6 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: npm run version:check
+      - run: npm run icons:check
       - run: npm test
       - run: npm run check

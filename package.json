@@ -1,6 +1,6 @@
 {
   "name": "when2meet-to-gcal",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": false,
   "license": "GPL-3.0-or-later",
   "description": "A userscript that converts when2meet Group polls to Google Calendar events",
@@ -15,8 +15,10 @@
   },
   "scripts": {
     "test": "node --test test/rank.test.mjs test/gcal.test.mjs",
-    "check": "node --check when2meet-to-gcal.user.js && node --check src/rank.mjs && node --check src/gcal.mjs",
+    "check": "node --check when2meet-to-gcal.user.js && node --check src/rank.mjs && node --check src/gcal.mjs && node scripts/embed-icon.mjs check",
     "version:check": "node scripts/version.mjs check",
-    "version:sync": "node scripts/version.mjs sync"
+    "version:sync": "node scripts/version.mjs sync",
+    "icons:check": "node scripts/embed-icon.mjs check",
+    "icons:sync": "node scripts/embed-icon.mjs sync"
   }
 }

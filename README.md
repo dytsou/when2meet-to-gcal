@@ -20,6 +20,10 @@ After install, Tampermonkey checks `@updateURL` against GitHub `main`. Keep **`p
 # bump package.json version, then:
 npm run version:sync   # copy into when2meet-to-gcal.user.js
 npm run version:check  # verify match
+
+# FAB icon lives in src/icons/; embed into the userscript after edits:
+npm run icons:sync
+npm run icons:check
 ```
 
 Push to `main` runs **Publish**: if tag `vX.Y.Z` does not exist yet, it creates a GitHub Release with `when2meet-to-gcal.user.js` attached.
