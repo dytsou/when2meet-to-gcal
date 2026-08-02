@@ -471,7 +471,7 @@
         list-style: none;
         padding: 0;
         margin: 6px 0;
-        max-height: min(220px, 40vh);
+        max-height: min(120px, 20vh);
         overflow-y: auto;
         overscroll-behavior: contain;
       }
