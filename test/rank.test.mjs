@@ -4,6 +4,7 @@ import {
   snapDuration,
   rankWindows,
   selectMaxCandidates,
+  filterByStartOffset,
   buildMatrixFromGlobals,
 } from "../src/rank.mjs";
 
@@ -108,16 +109,48 @@ describe("selectMaxCandidates AE2 ties", () => {
     assert.equal(max[1].score, 3);
   });
 
-  it("thins sliding duplicates with same attendees", () => {
-    // Contiguous block of 6 slots → many 60-min slides, same people
+  it("keeps sliding max windows including mid-block starts", () => {
+    // Contiguous block of 6 slots → five 60-min slides, same people
     const block = [0, 1, 2, 3, 4, 5].map((i) => ({
       epoch: base + i * step,
       attendees: a,
     }));
     const ranked = rankWindows(block, 60, 15);
     const max = selectMaxCandidates(ranked);
-    assert.equal(max.length, 1);
+    assert.equal(max.length, 3); // starts at 0, 15, 30 min into the block for 4-slot windows... wait 6 slots → need 4 for 60min → starts i=0,1,2 → 3 windows
     assert.equal(max[0].startEpoch, base);
+    assert.equal(max[1].startEpoch, base + step);
+    assert.equal(max[2].startEpoch, base + 2 * step);
+  });
+});
+
+describe("filterByStartOffset", () => {
+  const step = 15 * 60;
+  // 2024-01-01 00:00 UTC
+  const hour = Date.UTC(2024, 0, 1, 0, 0, 0) / 1000;
+  const windows = [0, 1, 2, 3].map((i) => ({
+    startEpoch: hour + i * step,
+    endEpoch: hour + i * step + 60 * 60,
+    score: 3,
+    attendees: ["1"],
+  }));
+
+  it("keeps all when :30 and :15/:45 enabled", () => {
+    assert.equal(filterByStartOffset(windows, "UTC", { include30: true, include15_45: true }).length, 4);
+  });
+
+  it("keeps :00 and :30 when only half-hour enabled", () => {
+    const filtered = filterByStartOffset(windows, "UTC", { include30: true, include15_45: false });
+    assert.deepEqual(
+      filtered.map((w) => w.startEpoch),
+      [hour, hour + 2 * step],
+    );
+  });
+
+  it("keeps only :00 when both off", () => {
+    const filtered = filterByStartOffset(windows, "UTC", { include30: false, include15_45: false });
+    assert.equal(filtered.length, 1);
+    assert.equal(filtered[0].startEpoch, hour);
   });
 });
 

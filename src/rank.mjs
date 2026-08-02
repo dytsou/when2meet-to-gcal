@@ -66,7 +66,7 @@ export function rankWindows(slots, durationMinutes, stepMinutes = 15) {
 }
 
 /**
- * Keep max-score windows; among overlapping same-attendee sets, keep earliest start.
+ * Keep all max-score windows (sliding starts included), sorted by start.
  * @param {WindowCandidate[]} windows
  * @returns {WindowCandidate[]}
  */
@@ -74,26 +74,44 @@ export function selectMaxCandidates(windows) {
   if (!windows.length) return [];
   const max = Math.max(...windows.map((w) => w.score));
   if (max <= 0) return [];
-  const top = windows
+  return windows
     .filter((w) => w.score === max)
     .sort((a, b) => a.startEpoch - b.startEpoch || a.endEpoch - b.endEpoch);
-
-  const kept = [];
-  for (const w of top) {
-    const key = w.attendees.join(",");
-    const overlapsSame = kept.find(
-      (k) =>
-        k.attendees.join(",") === key &&
-        rangesOverlap(k.startEpoch, k.endEpoch, w.startEpoch, w.endEpoch),
-    );
-    if (overlapsSame) continue; // keep earliest already in kept
-    kept.push(w);
-  }
-  return kept;
 }
 
-function rangesOverlap(a0, a1, b0, b1) {
-  return a0 < b1 && b0 < a1;
+/**
+ * Minute-of-hour for an epoch in a given IANA zone.
+ * @param {number} epochSec
+ * @param {string} timeZone
+ */
+export function startMinuteInZone(epochSec, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    minute: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(new Date(epochSec * 1000));
+  return Number(parts.find((p) => p.type === "minute")?.value ?? NaN);
+}
+
+/**
+ * Filter window starts by clock minute in `timeZone`.
+ * :00 always kept. :30 and :15/:45 are controlled separately.
+ * @param {WindowCandidate[]} windows
+ * @param {string} timeZone
+ * @param {{ include30?: boolean, include15_45?: boolean }} [opts]
+ */
+export function filterByStartOffset(windows, timeZone, opts = {}) {
+  const include30 = opts.include30 !== false;
+  const include15_45 = opts.include15_45 !== false;
+  if (!timeZone || !windows?.length) return windows || [];
+  if (include30 && include15_45) return windows;
+  return windows.filter((w) => {
+    const m = startMinuteInZone(w.startEpoch, timeZone);
+    if (m === 0) return true;
+    if (m === 30) return include30;
+    if (m === 15 || m === 45) return include15_45;
+    return false;
+  });
 }
 
 /**

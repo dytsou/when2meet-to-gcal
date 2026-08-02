@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         when2meet → Google Calendar
 // @namespace    https://github.com/dytsou/when2meet-to-gcal
-// @version      0.1.2
+// @version      0.1.3
 // @description  Highlight max continuous-overlap windows and open a Google Calendar TEMPLATE draft
 // @author       dytsou
 // @match        https://www.when2meet.com/*
@@ -21,6 +21,9 @@
   const STORAGE_POS = "w2m2gcal.panelPos";
   const STORAGE_MIN = "w2m2gcal.panelMinimized";
   const STORAGE_MIN_POS = "w2m2gcal.panelMinPos";
+  const STORAGE_INCLUDE_30 = "w2m2gcal.include30Starts";
+  const STORAGE_INCLUDE_15_45 = "w2m2gcal.include15_45Starts";
+  const STORAGE_QUARTERS_LEGACY = "w2m2gcal.includeQuarterStarts";
   const CAL_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>`;
   const CLS = "w2m2gcal-hi";
   const CLS_SEL = "w2m2gcal-sel";
@@ -117,32 +120,36 @@
     return out;
   }
 
-  function rangesOverlap(a0, a1, b0, b1) {
-    return a0 < b1 && b0 < a1;
-  }
-
   function selectMaxCandidates(windows) {
     if (!windows.length) return [];
     const max = Math.max(...windows.map((w) => w.score));
     if (max <= 0) return [];
-    const top = windows
+    return windows
       .filter((w) => w.score === max)
       .sort((a, b) => a.startEpoch - b.startEpoch || a.endEpoch - b.endEpoch);
-    const kept = [];
-    for (const w of top) {
-      const key = w.attendees.join(",");
-      if (
-        kept.find(
-          (k) =>
-            k.attendees.join(",") === key &&
-            rangesOverlap(k.startEpoch, k.endEpoch, w.startEpoch, w.endEpoch),
-        )
-      ) {
-        continue;
-      }
-      kept.push(w);
-    }
-    return kept;
+  }
+
+  function startMinuteInZone(epochSec, timeZone) {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      minute: "numeric",
+      hourCycle: "h23",
+    }).formatToParts(new Date(epochSec * 1000));
+    return Number(parts.find((p) => p.type === "minute")?.value ?? NaN);
+  }
+
+  function filterByStartOffset(windows, timeZone, opts = {}) {
+    const include30 = opts.include30 !== false;
+    const include15_45 = opts.include15_45 !== false;
+    if (!timeZone || !windows?.length) return windows || [];
+    if (include30 && include15_45) return windows;
+    return windows.filter((w) => {
+      const m = startMinuteInZone(w.startEpoch, timeZone);
+      if (m === 0) return true;
+      if (m === 30) return include30;
+      if (m === 15 || m === 45) return include15_45;
+      return false;
+    });
   }
 
   function formatLocalStamp(epochSec, timeZone) {
@@ -256,10 +263,27 @@
   let panelNotice = "";
   let lastErrorMsg = null;
   let panelMinimized = false;
+  let include30Starts = true;
+  let include15_45Starts = true;
   try {
     panelMinimized = !!GM_getValue(STORAGE_MIN, false);
   } catch {
     panelMinimized = false;
+  }
+  try {
+    const legacy = GM_getValue(STORAGE_QUARTERS_LEGACY, null);
+    const has30 = GM_getValue(STORAGE_INCLUDE_30, null);
+    const has1545 = GM_getValue(STORAGE_INCLUDE_15_45, null);
+    if (has30 == null && has1545 == null && legacy != null) {
+      include30Starts = legacy !== false;
+      include15_45Starts = legacy !== false;
+    } else {
+      include30Starts = has30 !== false;
+      include15_45Starts = has1545 !== false;
+    }
+  } catch {
+    include30Starts = true;
+    include15_45Starts = true;
   }
 
   function setMinimized(next) {
@@ -325,7 +349,11 @@
       return;
     }
     const ranked = rankWindows(matrix.slots, durationMinutes, stepMinutes);
-    candidates = selectMaxCandidates(ranked);
+    const tz = resolveGridTimeZone();
+    candidates = filterByStartOffset(selectMaxCandidates(ranked), tz, {
+      include30: include30Starts,
+      include15_45: include15_45Starts,
+    });
     if (candidates.length === 1) selected = candidates[0];
     paintCandidates();
     renderPanelBody();
@@ -651,6 +679,10 @@
         <label>Custom <input type="number" min="1" step="${stepMinutes}" id="w2m2gcal-custom" value="${durationMinutes}" aria-describedby="w2m2gcal-snap"></label>
       </div>
       <p class="muted" id="w2m2gcal-snap">Effective duration: <strong>${effective} min</strong> (snapped to ${stepMinutes}-min grid)</p>
+      <div class="row muted">
+        <label><input type="checkbox" id="w2m2gcal-30" ${include30Starts ? "checked" : ""}> Include :30 starts</label>
+        <label><input type="checkbox" id="w2m2gcal-1545" ${include15_45Starts ? "checked" : ""}> Include :15 / :45 starts</label>
+      </div>
       ${tiesHtml}
       ${preview}
       ${notice}
@@ -660,6 +692,25 @@
     `;
 
     root.querySelector(".w2m2gcal-min")?.addEventListener("click", () => setMinimized(true));
+    const bindOffsetToggle = (id, key, apply) => {
+      const el = root.querySelector(id);
+      if (!el) return;
+      el.addEventListener("change", () => {
+        apply(!!el.checked);
+        try {
+          GM_setValue(key, el.checked);
+        } catch {
+          /* ignore */
+        }
+        recompute();
+      });
+    };
+    bindOffsetToggle("#w2m2gcal-30", STORAGE_INCLUDE_30, (v) => {
+      include30Starts = v;
+    });
+    bindOffsetToggle("#w2m2gcal-1545", STORAGE_INCLUDE_15_45, (v) => {
+      include15_45Starts = v;
+    });
     root.querySelectorAll("button.chip").forEach((btn) => {
       btn.addEventListener("click", () => {
         durationMinutes = Number(btn.getAttribute("data-dur"));

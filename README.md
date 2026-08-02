@@ -13,8 +13,9 @@ Tampermonkey userscript: on a [when2meet](https://www.when2meet.com) Group resul
 
 1. Choose duration chips or enter a custom value (snapped up to the poll’s slot step, usually 15 minutes). Effective duration is shown in the panel.
 2. Max-score windows are outlined on the Group grid (Intersector-style paint; heatmap colors stay visible).
-3. If several windows tie, pick one from the list **or click a highlighted grid band**; then open Google Calendar.
-4. Confirm the **Preview** time (grid display zone), then **Open Google Calendar**. Save the draft in Google’s UI.
+3. If several windows tie, pick one from the scrollable list **or click a highlighted grid band**; then open Google Calendar.
+4. Optional start filters (**:00** always kept): **Include :30 starts** and **Include :15 / :45 starts** (both on by default).
+5. Confirm the **Preview** time (grid display zone), then **Open Google Calendar**. Save the draft in Google’s UI.
 
 ## Automated tests
 
@@ -23,4 +24,4 @@ npm test
 npm run check
 ```
 
-CI runs the same on push/PR to `main` (Node 20 and 22). Covers continuous-overlap ranking, tie thinning, duration snap, extract validation, and TEMPLATE URL encoding.
+CI runs the same on push/PR to `main` (Node 20 and 22). Covers continuous-overlap ranking, start-offset filtering, duration snap, extract validation, and TEMPLATE URL encoding.
