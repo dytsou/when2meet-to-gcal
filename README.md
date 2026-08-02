@@ -2,6 +2,8 @@
 
 Tampermonkey userscript: on a [when2meet](https://www.when2meet.com) Group results page, pick a meeting duration (30 / 60 / 90 / 120 or custom), see the best **continuous full-attendance** windows highlighted on the native grid, resolve ties from a list, and open a prefilled Google Calendar event (TEMPLATE URL — no OAuth).
 
+**License:** [GPL-3.0-or-later](./LICENSE) (copyleft — derivatives must stay open source). Declared as `@license GPL-3.0-or-later` for Greasy Fork.
+
 ## Install
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/) (or a compatible userscript manager).

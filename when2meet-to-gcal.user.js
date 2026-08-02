@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         when2meet → Google Calendar
 // @namespace    https://github.com/dytsou/when2meet-to-gcal
-// @version      0.1.5
+// @version      0.1.6
 // @description  Highlight max continuous-overlap windows and open a Google Calendar TEMPLATE draft
 // @author       dytsou
+// @license      GPL-3.0-or-later
 // @match        https://www.when2meet.com/*
 // @match        https://when2meet.com/*
 // @updateURL    https://raw.githubusercontent.com/dytsou/when2meet-to-gcal/main/when2meet-to-gcal.user.js

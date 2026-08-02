@@ -1,7 +1,8 @@
 {
   "name": "when2meet-to-gcal",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": false,
+  "license": "GPL-3.0-or-later",
   "description": "A userscript that converts when2meet Group polls to Google Calendar events",
   "author": {
     "name": "dytsou",
