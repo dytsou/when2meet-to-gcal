@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         when2meet → Google Calendar
 // @namespace    https://github.com/dytsou/when2meet-to-gcal
-// @version      0.1.3
+// @version      0.1.4
 // @description  Highlight max continuous-overlap windows and open a Google Calendar TEMPLATE draft
 // @author       dytsou
 // @match        https://www.when2meet.com/*
@@ -27,6 +27,9 @@
   const CAL_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>`;
   const CLS = "w2m2gcal-hi";
   const CLS_SEL = "w2m2gcal-sel";
+  const BAND = "w2m2gcal-band";
+  const BAND_HI = "w2m2gcal-band-hi";
+  const BAND_SEL = "w2m2gcal-band-sel";
   const ROOT_ID = "w2m2gcal-panel";
 
   // --- pure helpers (keep in sync with src/rank.mjs + src/gcal.mjs) ---
@@ -316,29 +319,66 @@
   }
 
   function clearHighlights() {
+    document.querySelectorAll("." + BAND).forEach((el) => el.remove());
     document.querySelectorAll("." + CLS + ", ." + CLS_SEL).forEach((el) => {
       el.classList.remove(CLS, CLS_SEL);
     });
   }
 
+  function cellsForCandidate(c) {
+    return (c.slotIndexes || [])
+      .map((idx) => {
+        const epoch = matrix?.slots[idx]?.epoch;
+        return epoch != null ? document.getElementById("GroupTime" + epoch) : null;
+      })
+      .filter(Boolean);
+  }
+
+  function unionRect(cells) {
+    let minL = Infinity;
+    let minT = Infinity;
+    let maxR = -Infinity;
+    let maxB = -Infinity;
+    for (const el of cells) {
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 && r.height <= 0) continue;
+      minL = Math.min(minL, r.left);
+      minT = Math.min(minT, r.top);
+      maxR = Math.max(maxR, r.right);
+      maxB = Math.max(maxB, r.bottom);
+    }
+    if (!Number.isFinite(minL)) return null;
+    return { left: minL, top: minT, width: maxR - minL, height: maxB - minT };
+  }
+
+  function paintBand(c, selectedBand) {
+    const box = unionRect(cellsForCandidate(c));
+    if (!box || box.width < 1 || box.height < 1) return;
+    const el = document.createElement("div");
+    el.className = `${BAND} ${selectedBand ? BAND_SEL : BAND_HI}`;
+    el.style.left = `${box.left}px`;
+    el.style.top = `${box.top}px`;
+    el.style.width = `${box.width}px`;
+    el.style.height = `${box.height}px`;
+    el.title = selectedBand ? "Selected window" : "Click to select this window";
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      panelNotice = "";
+      selected = c;
+      paintCandidates();
+      renderPanelBody();
+    });
+    document.body.appendChild(el);
+  }
+
   function paintCandidates() {
     clearHighlights();
     for (const c of candidates) {
-      const indexes = c.slotIndexes || [];
-      for (const idx of indexes) {
-        const epoch = matrix.slots[idx]?.epoch;
-        if (epoch == null) continue;
-        const el = document.getElementById("GroupTime" + epoch);
-        if (el) el.classList.add(CLS);
-      }
+      if (selected && c === selected) continue;
+      paintBand(c, false);
     }
-    if (selected) {
-      for (const idx of selected.slotIndexes || []) {
-        const epoch = matrix.slots[idx]?.epoch;
-        const el = epoch != null ? document.getElementById("GroupTime" + epoch) : null;
-        if (el) el.classList.add(CLS_SEL);
-      }
-    }
+    if (selected) paintBand(selected, true);
   }
 
   function recompute() {
@@ -366,8 +406,9 @@
   }
 
   function onGridClick(ev) {
+    if (ev.target?.closest?.("." + BAND)) return;
     const cell = ev.target?.closest?.('[id^="GroupTime"]');
-    if (!cell || !cell.classList.contains(CLS)) return;
+    if (!cell) return;
     const epoch = Number(String(cell.id).replace(/^GroupTime/, ""));
     if (!Number.isFinite(epoch)) return;
     const hit = candidateContainingEpoch(epoch);
@@ -382,6 +423,24 @@
     if (document.documentElement.dataset.w2m2gcalClick) return;
     document.documentElement.dataset.w2m2gcalClick = "1";
     document.addEventListener("click", onGridClick, true);
+  }
+
+  function hookBandRepaint() {
+    if (document.documentElement.dataset.w2m2gcalBand) return;
+    document.documentElement.dataset.w2m2gcalBand = "1";
+    let frame = 0;
+    const schedule = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        try {
+          paintCandidates();
+        } catch {
+          /* ignore */
+        }
+      });
+    };
+    window.addEventListener("scroll", schedule, true);
+    window.addEventListener("resize", schedule);
   }
 
   function ensureStyles() {
@@ -479,8 +538,26 @@
         width: 100%; text-align: left; background: #fafaf9; margin-bottom: 4px;
       }
       #${ROOT_ID} ul.ties li button[aria-pressed="true"] { outline: 2px solid #0f766e; }
-      .${CLS} { outline: 2px solid #0f766e !important; outline-offset: -2px; cursor: pointer; }
-      .${CLS_SEL} { outline: 3px solid #c2410c !important; outline-offset: -2px; box-shadow: inset 0 0 0 2px #fdba74; cursor: pointer; }
+      .${BAND} {
+        position: fixed;
+        z-index: 2147483000;
+        box-sizing: border-box;
+        border-radius: 3px;
+        cursor: pointer;
+        pointer-events: auto;
+      }
+      .${BAND_HI} {
+        outline: 2px solid #0f766e;
+        outline-offset: -1px;
+        background: rgba(15, 118, 110, 0.14);
+      }
+      .${BAND_SEL} {
+        z-index: 2147483001;
+        outline: 3px solid #c2410c;
+        outline-offset: -1px;
+        background: rgba(194, 65, 12, 0.2);
+        box-shadow: inset 0 0 0 1px #fdba74;
+      }
     `;
     document.head.appendChild(s);
   }
@@ -799,6 +876,7 @@
     durationMinutes = snapDuration(durationMinutes, stepMinutes);
     hookRecolor();
     hookGridClicks();
+    hookBandRepaint();
     recompute();
   }
 
