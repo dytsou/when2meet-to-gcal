@@ -1,0 +1,109 @@
+name: Publish
+
+# Userscript release: verify package.json ↔ user.js version, then create a
+# GitHub Release (tag vX.Y.Z) with when2meet-to-gcal.user.js attached.
+# Tampermonkey clients still update from @updateURL on main; the Release is
+# the versioned publish artifact.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "package.json"
+      - "when2meet-to-gcal.user.js"
+      - "src/**"
+      - "scripts/version.mjs"
+      - ".github/workflows/publish.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Sync check (package.json ↔ user.js)
+        run: npm run version:check
+
+      - name: Test
+        run: |
+          npm test
+          npm run check
+
+      - name: Get package version
+        id: package-version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Current package version: $VERSION"
+
+      - name: Get package name
+        id: package-name
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "Current package name: $NAME"
+
+      - name: Check if release tag exists
+        id: check-tag
+        run: |
+          VERSION="${{ steps.package-version.outputs.version }}"
+          TAG="v${VERSION}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag $TAG already exists — skip release"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Tag $TAG is new — will create release"
+          fi
+
+      - name: Create GitHub Release
+        if: steps.check-tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.package-version.outputs.version }}
+          name: v${{ steps.package-version.outputs.version }}
+          prerelease: ${{ contains(steps.package-version.outputs.version, 'beta') || contains(steps.package-version.outputs.version, 'alpha') || contains(steps.package-version.outputs.version, 'rc') }}
+          files: when2meet-to-gcal.user.js
+          generate_release_notes: true
+          draft: false
+          body: |
+            ## ${{ steps.package-name.outputs.name }}@${{ steps.package-version.outputs.version }}
+
+            Tampermonkey userscript release.
+
+            ### Install / update
+
+            **Raw (auto-update via `@updateURL`):**
+
+            https://raw.githubusercontent.com/${{ github.repository }}/main/when2meet-to-gcal.user.js
+
+            **This release asset:** download `when2meet-to-gcal.user.js` below, or open the raw URL after this tag is on `main`.
+
+            After install, Tampermonkey updates when `@version` on `main` increases.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish summary
+        if: always()
+        run: |
+          echo "## Publish summary"
+          echo "- package: ${{ steps.package-name.outputs.name }}@${{ steps.package-version.outputs.version }}"
+          if [ "${{ steps.check-tag.outputs.exists }}" = "true" ]; then
+            echo "- GitHub Release: skipped (tag already exists)"
+          elif [ "${{ steps.check-tag.outputs.exists }}" = "false" ]; then
+            echo "- GitHub Release: created v${{ steps.package-version.outputs.version }}"
+          else
+            echo "- GitHub Release: not evaluated"
+          fi
