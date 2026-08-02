@@ -8,7 +8,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
 const USER_JS = "when2meet-to-gcal.user.js";
-const SVG_PATH = "src/icons/calendar-flag.svg";
+const SVG_PATH = "src/icons/calendar-plus.svg";
 const CONST_NAME = "CAL_ICON";
 // Markers keep the blob out of hand-edits; sync owns the middle.
 const START = `  // <embed-icon src="${SVG_PATH}">`;
