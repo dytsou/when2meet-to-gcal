@@ -5,9 +5,42 @@ Tampermonkey userscript: on a [when2meet](https://www.when2meet.com) Group resul
 ## Install
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/) (or a compatible userscript manager).
-2. Create a new script and paste the contents of [`when2meet-to-gcal.user.js`](./when2meet-to-gcal.user.js), **or** use Tampermonkey → Utilities → “Install from URL” / open the raw file if you host it.
-3. Ensure `@match` covers `https://www.when2meet.com/*`.
-4. Open a when2meet **Group** results page (specific dates). A panel appears above the grid.
+2. Open the raw script URL (Tampermonkey should prompt to install):
+
+   https://raw.githubusercontent.com/dytsou/when2meet-to-gcal/main/when2meet-to-gcal.user.js
+
+   Or: Tampermonkey Dashboard → Utilities → **Install from URL** → paste the same link.
+3. Open a when2meet **Group** results page (specific dates). A floating panel appears (bottom-left by default).
+
+After install, Tampermonkey checks `@updateURL` against GitHub `main`. Keep **`package.json` `version` and `// @version` in the userscript identical** (CI enforces this).
+
+```bash
+# bump package.json version, then:
+npm run version:sync   # copy into when2meet-to-gcal.user.js
+npm run version:check  # verify match
+```
+
+Push to `main` runs **Publish**: if tag `vX.Y.Z` does not exist yet, it creates a GitHub Release with `when2meet-to-gcal.user.js` attached.
+
+### Local hot reload (optional, for development)
+
+1. Chrome → `chrome://extensions` → Tampermonkey → enable **Allow access to file URLs**.
+2. Create a tiny stub script in Tampermonkey that only `@require`s your checkout:
+
+```js
+// ==UserScript==
+// @name         Dev - when2meet → Google Calendar
+// @match        https://www.when2meet.com/*
+// @match        https://when2meet.com/*
+// @require      file:///Users/YOU/src/when2meet-to-gcal/when2meet-to-gcal.user.js
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        unsafeWindow
+// ==/UserScript==
+```
+
+3. Disable the production install while developing; refresh the when2meet page after edits.
+
 
 ## Usage
 
@@ -24,4 +57,4 @@ npm test
 npm run check
 ```
 
-CI runs the same on push/PR to `main` (Node 20 and 22). Covers continuous-overlap ranking, start-offset filtering, duration snap, extract validation, and TEMPLATE URL encoding.
+CI runs the same on push/PR to `main` (Node 24). Covers continuous-overlap ranking, start-offset filtering, duration snap, extract validation, and TEMPLATE URL encoding.
