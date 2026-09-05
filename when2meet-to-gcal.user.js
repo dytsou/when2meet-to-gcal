@@ -3,7 +3,7 @@
 // @name:zh-TW   when2meet → Google 日曆
 // @name:zh-CN   when2meet → Google 日历
 // @namespace    https://github.com/dytsou/when2meet-to-gcal
-// @version      0.1.9
+// @version      0.1.10-beta
 // @description  Highlight max continuous-overlap windows and open a Google Calendar TEMPLATE draft
 // @description:zh-TW 在 when2meet 結果頁依會議時長找出最多人可全程參加的連續時段，一鍵開啟 Google 日曆草稿
 // @description:zh-CN 在 when2meet 结果页按会议时长找出最多人可全程参加的连续时段，一键打开 Google 日历草稿
@@ -37,6 +37,7 @@
   // </embed-icon>
   const CLS = "w2m2gcal-hi";
   const CLS_SEL = "w2m2gcal-sel";
+  const BAND = "w2m2gcal-band";
   const ROOT_ID = "w2m2gcal-panel";
 
   // --- pure helpers (keep in sync with src/rank.mjs + src/gcal.mjs) ---
@@ -275,6 +276,9 @@
   let panelMinimized = false;
   let include30Starts = true;
   let include15_45Starts = true;
+  let selectedFrameHost = null;
+  let selectedFrameHostPosition = "";
+  let selectedFrameHostNeedsRestore = false;
   try {
     panelMinimized = !!GM_getValue(STORAGE_MIN, false);
   } catch {
@@ -329,6 +333,13 @@
     document.querySelectorAll("." + CLS + ", ." + CLS_SEL).forEach((el) => {
       el.classList.remove(CLS, CLS_SEL);
     });
+    document.querySelectorAll("." + BAND).forEach((el) => el.remove());
+    if (selectedFrameHost && selectedFrameHostNeedsRestore) {
+      selectedFrameHost.style.position = selectedFrameHostPosition;
+    }
+    selectedFrameHost = null;
+    selectedFrameHostPosition = "";
+    selectedFrameHostNeedsRestore = false;
   }
 
   function cellsForCandidate(c) {
@@ -340,14 +351,57 @@
       .filter(Boolean);
   }
 
+  function unionRect(elements) {
+    const rects = elements
+      .map((el) => el.getBoundingClientRect())
+      .filter((rect) => rect.width > 0 && rect.height > 0);
+    if (!rects.length) return null;
+    const left = Math.min(...rects.map((rect) => rect.left));
+    const top = Math.min(...rects.map((rect) => rect.top));
+    const right = Math.max(...rects.map((rect) => rect.right));
+    const bottom = Math.max(...rects.map((rect) => rect.bottom));
+    return { left, top, right, bottom, width: right - left, height: bottom - top };
+  }
+
+  function commonAncestor(elements) {
+    if (!elements.length) return null;
+    for (let ancestor = elements[0].parentElement; ancestor; ancestor = ancestor.parentElement) {
+      if (elements.every((el) => ancestor.contains(el))) return ancestor;
+    }
+    return null;
+  }
+
+  function paintSelectedFrame(c) {
+    const cells = cellsForCandidate(c);
+    const box = unionRect(cells);
+    const host = commonAncestor(cells);
+    if (!box || !host) return;
+
+    const computedPosition =
+      typeof getComputedStyle === "function" ? getComputedStyle(host).position : host.style.position;
+    selectedFrameHostNeedsRestore = !computedPosition || computedPosition === "static";
+    selectedFrameHostPosition = selectedFrameHostNeedsRestore ? host.style.position : "";
+    if (selectedFrameHostNeedsRestore) host.style.position = "relative";
+
+    const hostRect = host.getBoundingClientRect();
+    const clientLeft = Number(host.clientLeft) || 0;
+    const clientTop = Number(host.clientTop) || 0;
+    const scrollLeft = Number(host.scrollLeft) || 0;
+    const scrollTop = Number(host.scrollTop) || 0;
+    const frame = document.createElement("div");
+    frame.className = BAND;
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.left = `${box.left - hostRect.left - clientLeft + scrollLeft}px`;
+    frame.style.top = `${box.top - hostRect.top - clientTop + scrollTop}px`;
+    frame.style.width = `${box.width}px`;
+    frame.style.height = `${box.height}px`;
+    host.appendChild(frame);
+    selectedFrameHost = host;
+  }
+
   function paintCandidates() {
     clearHighlights();
-    for (const c of candidates) {
-      for (const el of cellsForCandidate(c)) el.classList.add(CLS);
-    }
-    if (selected) {
-      for (const el of cellsForCandidate(selected)) el.classList.add(CLS_SEL);
-    }
+    if (selected) paintSelectedFrame(selected);
   }
 
   function recompute() {
@@ -369,14 +423,15 @@
   }
 
   function candidateContainingEpoch(epoch) {
-    return candidates.find((c) =>
-      (c.slotIndexes || []).some((idx) => matrix?.slots[idx]?.epoch === epoch),
-    );
+    const containsEpoch = (c) =>
+      (c.slotIndexes || []).some((idx) => matrix?.slots[idx]?.epoch === epoch);
+    if (selected && containsEpoch(selected)) return selected;
+    return [...candidates].reverse().find(containsEpoch);
   }
 
   function onGridClick(ev) {
     const cell = ev.target?.closest?.('[id^="GroupTime"]');
-    if (!cell || (!cell.classList.contains(CLS) && !cell.classList.contains(CLS_SEL))) return;
+    if (!cell) return;
     const epoch = Number(String(cell.id).replace(/^GroupTime/, ""));
     if (!Number.isFinite(epoch)) return;
     const hit = candidateContainingEpoch(epoch);
@@ -488,8 +543,15 @@
         width: 100%; text-align: left; background: #fafaf9; margin-bottom: 4px;
       }
       #${ROOT_ID} ul.ties li button[aria-pressed="true"] { outline: 2px solid #0f766e; }
-      .${CLS} { outline: 2px solid #0f766e !important; outline-offset: -2px; cursor: pointer; }
-      .${CLS_SEL} { outline: 3px solid #c2410c !important; outline-offset: -2px; box-shadow: inset 0 0 0 2px #fdba74; cursor: pointer; }
+      .${BAND} {
+        position: absolute;
+        z-index: 2147483000;
+        box-sizing: border-box;
+        border: 3px solid #c2410c;
+        border-radius: 3px;
+        background: transparent;
+        pointer-events: none;
+      }
     `;
     document.head.appendChild(s);
   }
@@ -670,7 +732,7 @@
         : selected && !tz
           ? `<p class="err" role="alert">Could not resolve the grid display timezone — calendar open blocked.</p>`
           : multi
-            ? `<p class="muted">Select a tied window (list or highlighted grid) to enable Google Calendar.</p>`
+            ? `<p class="muted">Select a tied window (list or its grid time) to enable Google Calendar.</p>`
             : "";
 
     const notice = panelNotice ? `<p class="err" role="alert">${escapeHtml(panelNotice)}</p>` : "";

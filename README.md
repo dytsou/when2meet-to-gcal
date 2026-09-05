@@ -51,8 +51,8 @@ Push to `main` runs **Publish**: if tag `vX.Y.Z` does not exist yet, it creates 
 ## Usage
 
 1. Choose duration chips or enter a custom value (snapped up to the poll’s slot step, usually 15 minutes). Effective duration is shown in the panel.
-2. Max-score windows are outlined on the Group grid (Intersector-style paint; heatmap colors stay visible).
-3. If several windows tie, pick one from the scrollable list **or click a highlighted grid band**; then open Google Calendar.
+2. The selected max-score window is shown with one red frame around its full time range; heatmap colors stay visible.
+3. If several windows tie, pick one from the scrollable list **or click one of its grid times**; then open Google Calendar.
 4. Optional start filters (**:00** always kept): **Include :30 starts** and **Include :15 / :45 starts** (both on by default).
 5. Confirm the **Preview** time (grid display zone), then **Open Google Calendar**. Save the draft in Google’s UI.
 
