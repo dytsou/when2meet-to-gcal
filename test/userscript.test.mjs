@@ -80,6 +80,10 @@ class FakeElement {
       const top = 100 - this.fixture.pageScrollY;
       return { left: 100, top, right: 600, bottom: top + 500, width: 500, height: 500 };
     }
+    if (this === this.fixture?.gridHost) {
+      const top = 70 - this.fixture.pageScrollY;
+      return { left: 80, top, right: 580, bottom: top + 500, width: 500, height: 500 };
+    }
     const slot = Number(this.id.replace("GroupTime", "")) / 900;
     const gridRect = this.fixture.grid.getBoundingClientRect();
     const left = gridRect.left + 30 - this.fixture.grid.scrollLeft;
@@ -103,8 +107,12 @@ function createFixture(slotEpochs = [0, 900, 1800, 2700], gridViewport = {}) {
   const documentElement = new FakeElement("html");
   const head = new FakeElement("head");
   const body = new FakeElement("body");
+  const gridHost = new FakeElement("div");
+  gridHost.style.display = "inline-block";
+  gridHost.fixture = state;
   const grid = new FakeElement("div");
   grid.className = "GroupGrid";
+  grid.style.display = "inline";
   grid.fixture = state;
   grid.scrollTop = gridViewport.scrollTop || 0;
   grid.scrollLeft = gridViewport.scrollLeft || 0;
@@ -116,8 +124,10 @@ function createFixture(slotEpochs = [0, 900, 1800, 2700], gridViewport = {}) {
     return row;
   });
   rows.forEach((row) => grid.appendChild(row));
-  body.appendChild(grid);
+  gridHost.appendChild(grid);
+  body.appendChild(gridHost);
   state.grid = grid;
+  state.gridHost = gridHost;
   const elements = new Map(cells.map((cell) => [cell.id, cell]));
   const findById = (node, id) => {
     if (node.id === id) return node;
@@ -188,11 +198,14 @@ function createFixture(slotEpochs = [0, 900, 1800, 2700], gridViewport = {}) {
     URL,
     URLSearchParams,
     Intl,
-    getComputedStyle: (element) => ({ position: element.style.position || "static" }),
+    getComputedStyle: (element) => ({
+      display: element.style.display || "block",
+      position: element.style.position || "static",
+    }),
   };
 
   vm.runInNewContext(USER_SCRIPT, context, { filename: "when2meet-to-gcal.user.js" });
-  return { body, cells, grid, head, document, state };
+  return { body, cells, grid, gridHost, head, document, state };
 }
 
 describe("userscript grid highlighting", () => {
@@ -207,14 +220,15 @@ describe("userscript grid highlighting", () => {
     const frame = () => frames()[0];
 
     assert.equal(frames().length, 1);
-    assert.equal(frame().parentNode, fixture.grid);
+    assert.equal(frame().parentNode, fixture.gridHost);
     assert.equal(fixture.cells.filter((cell) => cell.classList.contains("w2m2gcal-hi")).length, 0);
     assert.equal(fixture.cells.filter((cell) => cell.classList.contains("w2m2gcal-sel")).length, 0);
-    assert.equal(Number.parseFloat(frame().style.left), 28);
-    assert.equal(Number.parseFloat(frame().style.top), 17);
+    assert.equal(Number.parseFloat(frame().style.left), 38);
+    assert.equal(Number.parseFloat(frame().style.top), 10);
     assert.equal(Number.parseFloat(frame().style.width), 40);
     assert.equal(Number.parseFloat(frame().style.height), 80);
-    assert.equal(fixture.grid.style.position, "relative");
+    assert.equal(fixture.grid.style.position || "", "");
+    assert.equal(fixture.gridHost.style.position, "relative");
 
     const style = fixture.head.children.find((child) => child.id === "w2m2gcal-style");
     assert.match(style.textContent, /\.w2m2gcal-band/);
