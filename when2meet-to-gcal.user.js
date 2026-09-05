@@ -3,7 +3,7 @@
 // @name:zh-TW   when2meet → Google 日曆
 // @name:zh-CN   when2meet → Google 日历
 // @namespace    https://github.com/dytsou/when2meet-to-gcal
-// @version      0.1.10-beta
+// @version      0.1.10
 // @description  Highlight max continuous-overlap windows and open a Google Calendar TEMPLATE draft
 // @description:zh-TW 在 when2meet 結果頁依會議時長找出最多人可全程參加的連續時段，一鍵開啟 Google 日曆草稿
 // @description:zh-CN 在 when2meet 结果页按会议时长找出最多人可全程参加的连续时段，一键打开 Google 日历草稿
