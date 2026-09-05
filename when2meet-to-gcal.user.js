@@ -371,14 +371,33 @@
     return null;
   }
 
+  function frameHost(elements) {
+    const ancestor = commonAncestor(elements);
+    if (!ancestor) return null;
+    for (let host = ancestor; host; host = host.parentElement) {
+      let computedStyle = null;
+      if (typeof getComputedStyle === "function") {
+        try {
+          computedStyle = getComputedStyle(host);
+        } catch {
+          /* ignore */
+        }
+      }
+      const display = computedStyle?.display || host.style?.display || "";
+      if (display !== "inline" && display !== "contents") {
+        return { host, position: computedStyle?.position || host.style.position };
+      }
+    }
+    return { host: ancestor, position: ancestor.style.position };
+  }
+
   function paintSelectedFrame(c) {
     const cells = cellsForCandidate(c);
     const box = unionRect(cells);
-    const host = commonAncestor(cells);
-    if (!box || !host) return;
+    const hostInfo = frameHost(cells);
+    if (!box || !hostInfo) return;
+    const { host, position: computedPosition } = hostInfo;
 
-    const computedPosition =
-      typeof getComputedStyle === "function" ? getComputedStyle(host).position : host.style.position;
     selectedFrameHostNeedsRestore = !computedPosition || computedPosition === "static";
     selectedFrameHostPosition = selectedFrameHostNeedsRestore ? host.style.position : "";
     if (selectedFrameHostNeedsRestore) host.style.position = "relative";
