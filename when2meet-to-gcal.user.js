@@ -3,7 +3,7 @@
 // @name:zh-TW   when2meet → Google 日曆
 // @name:zh-CN   when2meet → Google 日历
 // @namespace    https://github.com/dytsou/when2meet-to-gcal
-// @version      0.1.8
+// @version      0.1.9
 // @description  Highlight max continuous-overlap windows and open a Google Calendar TEMPLATE draft
 // @description:zh-TW 在 when2meet 結果頁依會議時長找出最多人可全程參加的連續時段，一鍵開啟 Google 日曆草稿
 // @description:zh-CN 在 when2meet 结果页按会议时长找出最多人可全程参加的连续时段，一键打开 Google 日历草稿
@@ -37,9 +37,6 @@
   // </embed-icon>
   const CLS = "w2m2gcal-hi";
   const CLS_SEL = "w2m2gcal-sel";
-  const BAND = "w2m2gcal-band";
-  const BAND_HI = "w2m2gcal-band-hi";
-  const BAND_SEL = "w2m2gcal-band-sel";
   const ROOT_ID = "w2m2gcal-panel";
 
   // --- pure helpers (keep in sync with src/rank.mjs + src/gcal.mjs) ---
@@ -329,7 +326,6 @@
   }
 
   function clearHighlights() {
-    document.querySelectorAll("." + BAND).forEach((el) => el.remove());
     document.querySelectorAll("." + CLS + ", ." + CLS_SEL).forEach((el) => {
       el.classList.remove(CLS, CLS_SEL);
     });
@@ -344,51 +340,14 @@
       .filter(Boolean);
   }
 
-  function unionRect(cells) {
-    let minL = Infinity;
-    let minT = Infinity;
-    let maxR = -Infinity;
-    let maxB = -Infinity;
-    for (const el of cells) {
-      const r = el.getBoundingClientRect();
-      if (r.width <= 0 && r.height <= 0) continue;
-      minL = Math.min(minL, r.left);
-      minT = Math.min(minT, r.top);
-      maxR = Math.max(maxR, r.right);
-      maxB = Math.max(maxB, r.bottom);
-    }
-    if (!Number.isFinite(minL)) return null;
-    return { left: minL, top: minT, width: maxR - minL, height: maxB - minT };
-  }
-
-  function paintBand(c, selectedBand) {
-    const box = unionRect(cellsForCandidate(c));
-    if (!box || box.width < 1 || box.height < 1) return;
-    const el = document.createElement("div");
-    el.className = `${BAND} ${selectedBand ? BAND_SEL : BAND_HI}`;
-    el.style.left = `${box.left}px`;
-    el.style.top = `${box.top}px`;
-    el.style.width = `${box.width}px`;
-    el.style.height = `${box.height}px`;
-    el.title = selectedBand ? "Selected window" : "Click to select this window";
-    el.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      panelNotice = "";
-      selected = c;
-      paintCandidates();
-      renderPanelBody();
-    });
-    document.body.appendChild(el);
-  }
-
   function paintCandidates() {
     clearHighlights();
     for (const c of candidates) {
-      if (selected && c === selected) continue;
-      paintBand(c, false);
+      for (const el of cellsForCandidate(c)) el.classList.add(CLS);
     }
-    if (selected) paintBand(selected, true);
+    if (selected) {
+      for (const el of cellsForCandidate(selected)) el.classList.add(CLS_SEL);
+    }
   }
 
   function recompute() {
@@ -416,9 +375,8 @@
   }
 
   function onGridClick(ev) {
-    if (ev.target?.closest?.("." + BAND)) return;
     const cell = ev.target?.closest?.('[id^="GroupTime"]');
-    if (!cell) return;
+    if (!cell || (!cell.classList.contains(CLS) && !cell.classList.contains(CLS_SEL))) return;
     const epoch = Number(String(cell.id).replace(/^GroupTime/, ""));
     if (!Number.isFinite(epoch)) return;
     const hit = candidateContainingEpoch(epoch);
@@ -433,24 +391,6 @@
     if (document.documentElement.dataset.w2m2gcalClick) return;
     document.documentElement.dataset.w2m2gcalClick = "1";
     document.addEventListener("click", onGridClick, true);
-  }
-
-  function hookBandRepaint() {
-    if (document.documentElement.dataset.w2m2gcalBand) return;
-    document.documentElement.dataset.w2m2gcalBand = "1";
-    let frame = 0;
-    const schedule = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        try {
-          paintCandidates();
-        } catch {
-          /* ignore */
-        }
-      });
-    };
-    window.addEventListener("scroll", schedule, true);
-    window.addEventListener("resize", schedule);
   }
 
   function ensureStyles() {
@@ -548,26 +488,8 @@
         width: 100%; text-align: left; background: #fafaf9; margin-bottom: 4px;
       }
       #${ROOT_ID} ul.ties li button[aria-pressed="true"] { outline: 2px solid #0f766e; }
-      .${BAND} {
-        position: fixed;
-        z-index: 2147483000;
-        box-sizing: border-box;
-        border-radius: 3px;
-        cursor: pointer;
-        pointer-events: auto;
-      }
-      .${BAND_HI} {
-        outline: 2px solid #0f766e;
-        outline-offset: -1px;
-        background: rgba(15, 118, 110, 0.14);
-      }
-      .${BAND_SEL} {
-        z-index: 2147483001;
-        outline: 3px solid #c2410c;
-        outline-offset: -1px;
-        background: rgba(194, 65, 12, 0.2);
-        box-shadow: inset 0 0 0 1px #fdba74;
-      }
+      .${CLS} { outline: 2px solid #0f766e !important; outline-offset: -2px; cursor: pointer; }
+      .${CLS_SEL} { outline: 3px solid #c2410c !important; outline-offset: -2px; box-shadow: inset 0 0 0 2px #fdba74; cursor: pointer; }
     `;
     document.head.appendChild(s);
   }
@@ -886,7 +808,6 @@
     durationMinutes = snapDuration(durationMinutes, stepMinutes);
     hookRecolor();
     hookGridClicks();
-    hookBandRepaint();
     recompute();
   }
 
