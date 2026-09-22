@@ -3,6 +3,61 @@
 (function () {
   "use strict";
 
+  const messages = Object.freeze({
+    "zh-TW": Object.freeze({
+      "aria.panel": "when2meet → Google 日曆",
+      "aria.expand": "展開 when2meet → Google 日曆",
+      "title.openPanel": "開啟面板（可拖曳移動）",
+      "title.drag": "拖曳移動",
+      "aria.minimize": "最小化面板",
+      "title.minimize": "最小化",
+      "aria.meetingDuration": "會議時長",
+      "label.custom": "自訂",
+      "label.durationMinutes": "{minutes} 分鐘",
+      "label.effectiveDurationPrefix": "實際時長：",
+      "label.snappedGrid": "（已對齊 {step} 分鐘網格）",
+      "label.include30": "包含 :30 開始時間",
+      "label.include1545": "包含 :15 / :45 開始時間",
+      "status.noWindow": "沒有任何時段能讓所有人完整參加 {minutes} 分鐘。",
+      "status.tied": "最高分同為 {score} 人，請選擇一個時段：",
+      "status.scoreFree": "{label} · {score} 人可參加",
+      "status.best": "最佳時段：{label} · {score} 人可參加",
+      "status.previewLabel": "預覽：",
+      "status.timezoneBlocked": "無法判斷格線顯示時區，已停用開啟 Google 日曆。",
+      "status.selectTied": "請從清單或格線時間選擇同分時段，才能開啟 Google 日曆。",
+      "button.openCalendar": "開啟 Google 日曆",
+      "notice.popupBlocked": "彈出視窗遭到封鎖，請允許此網站的彈出視窗後再試一次。",
+      "error.missingPageGlobals": "找不到頁面資料",
+      "error.expectedGlobals": "頁面缺少必要的時段資料",
+      "error.peopleNamesIdsMismatch": "參與者名稱與 ID 數量不一致",
+      "error.availableTimesMismatch": "可用時段與時間欄位數量不一致",
+      "error.noTimeSlots": "頁面上沒有可用的時間欄位",
+      "error.invalidTimestamps": "時間欄位包含無效的時間戳記",
+      "error.noSlotsToVerify": "沒有可用時段可與行事曆格線比對",
+      "error.gridStructureChanged": "無法將時間欄位對應到 GroupTime 格線，頁面結構可能已變更",
+    }),
+  });
+
+  const browserLocales = [];
+  if (typeof navigator !== "undefined") {
+    if (Array.isArray(navigator.languages)) browserLocales.push(...navigator.languages);
+    if (navigator.language) browserLocales.push(navigator.language);
+  }
+  const isTraditionalChinese = browserLocales.some((value) => {
+    const locale = String(value).toLowerCase().replace(/_/g, "-");
+    return locale === "zh-tw" || locale === "zh-hk" || locale === "zh-mo" || locale === "zh-hant" || locale.startsWith("zh-hant-");
+  });
+  const locale = isTraditionalChinese ? "zh-TW" : "en";
+  const formatMessage = (template, values) =>
+    String(template).replace(/\{(\w+)\}/g, (match, name) =>
+      Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : match,
+    );
+
+  globalThis.__w2m2gcalExtension = true;
+  globalThis.__w2m2gcalLocale = locale;
+  globalThis.__w2m2gcalI18n = (key, fallback, values = {}) =>
+    formatMessage(messages[locale]?.[key] ?? fallback, values);
+
   const VERSION = 1;
   const REQUEST_EVENT = "w2m2gcal:storage-request";
   const RESPONSE_EVENT = "w2m2gcal:storage-response";

@@ -83,6 +83,40 @@ describe("Chrome extension package", () => {
     assert.ok(fs.statSync(path.join(EXTENSION, "LICENSE")).isFile());
   });
 
+  it("auto-detects Traditional Chinese for extension UI translations", () => {
+    const traditionalChinese = createContext(new FakeWindow(), {
+      navigator: { language: "zh-TW", languages: ["zh-TW", "en-US"] },
+    });
+    execute(readExtensionFile("main-preamble.js"), traditionalChinese);
+
+    assert.equal(traditionalChinese.__w2m2gcalLocale, "zh-TW");
+    assert.equal(
+      traditionalChinese.__w2m2gcalI18n("button.openCalendar", "Open Google Calendar"),
+      "開啟 Google 日曆",
+    );
+    assert.equal(
+      traditionalChinese.__w2m2gcalI18n("status.tied", "Tied at {score} people — pick one:", { score: 3 }),
+      "最高分同為 3 人，請選擇一個時段：",
+    );
+
+    const english = createContext(new FakeWindow(), {
+      navigator: { language: "en-US", languages: ["en-US"] },
+    });
+    execute(readExtensionFile("main-preamble.js"), english);
+    assert.equal(english.__w2m2gcalLocale, "en");
+    assert.equal(english.__w2m2gcalI18n("button.openCalendar", "Open Google Calendar"), "Open Google Calendar");
+
+    const simplifiedChinese = createContext(new FakeWindow(), {
+      navigator: { language: "zh-CN", languages: ["zh-CN"] },
+    });
+    execute(readExtensionFile("main-preamble.js"), simplifiedChinese);
+    assert.equal(simplifiedChinese.__w2m2gcalLocale, "en");
+    assert.equal(
+      simplifiedChinese.__w2m2gcalI18n("button.openCalendar", "Open Google Calendar"),
+      "Open Google Calendar",
+    );
+  });
+
   it("hydrates only validated preferences through the isolated bridge", async () => {
     const window = new FakeWindow();
     const storage = {

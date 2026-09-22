@@ -6,6 +6,61 @@
 (function () {
   "use strict";
 
+  const messages = Object.freeze({
+    "zh-TW": Object.freeze({
+      "aria.panel": "when2meet → Google 日曆",
+      "aria.expand": "展開 when2meet → Google 日曆",
+      "title.openPanel": "開啟面板（可拖曳移動）",
+      "title.drag": "拖曳移動",
+      "aria.minimize": "最小化面板",
+      "title.minimize": "最小化",
+      "aria.meetingDuration": "會議時長",
+      "label.custom": "自訂",
+      "label.durationMinutes": "{minutes} 分鐘",
+      "label.effectiveDurationPrefix": "實際時長：",
+      "label.snappedGrid": "（已對齊 {step} 分鐘網格）",
+      "label.include30": "包含 :30 開始時間",
+      "label.include1545": "包含 :15 / :45 開始時間",
+      "status.noWindow": "沒有任何時段能讓所有人完整參加 {minutes} 分鐘。",
+      "status.tied": "最高分同為 {score} 人，請選擇一個時段：",
+      "status.scoreFree": "{label} · {score} 人可參加",
+      "status.best": "最佳時段：{label} · {score} 人可參加",
+      "status.previewLabel": "預覽：",
+      "status.timezoneBlocked": "無法判斷格線顯示時區，已停用開啟 Google 日曆。",
+      "status.selectTied": "請從清單或格線時間選擇同分時段，才能開啟 Google 日曆。",
+      "button.openCalendar": "開啟 Google 日曆",
+      "notice.popupBlocked": "彈出視窗遭到封鎖，請允許此網站的彈出視窗後再試一次。",
+      "error.missingPageGlobals": "找不到頁面資料",
+      "error.expectedGlobals": "頁面缺少必要的時段資料",
+      "error.peopleNamesIdsMismatch": "參與者名稱與 ID 數量不一致",
+      "error.availableTimesMismatch": "可用時段與時間欄位數量不一致",
+      "error.noTimeSlots": "頁面上沒有可用的時間欄位",
+      "error.invalidTimestamps": "時間欄位包含無效的時間戳記",
+      "error.noSlotsToVerify": "沒有可用時段可與行事曆格線比對",
+      "error.gridStructureChanged": "無法將時間欄位對應到 GroupTime 格線，頁面結構可能已變更",
+    }),
+  });
+
+  const browserLocales = [];
+  if (typeof navigator !== "undefined") {
+    if (Array.isArray(navigator.languages)) browserLocales.push(...navigator.languages);
+    if (navigator.language) browserLocales.push(navigator.language);
+  }
+  const isTraditionalChinese = browserLocales.some((value) => {
+    const locale = String(value).toLowerCase().replace(/_/g, "-");
+    return locale === "zh-tw" || locale === "zh-hk" || locale === "zh-mo" || locale === "zh-hant" || locale.startsWith("zh-hant-");
+  });
+  const locale = isTraditionalChinese ? "zh-TW" : "en";
+  const formatMessage = (template, values) =>
+    String(template).replace(/\{(\w+)\}/g, (match, name) =>
+      Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : match,
+    );
+
+  globalThis.__w2m2gcalExtension = true;
+  globalThis.__w2m2gcalLocale = locale;
+  globalThis.__w2m2gcalI18n = (key, fallback, values = {}) =>
+    formatMessage(messages[locale]?.[key] ?? fallback, values);
+
   const VERSION = 1;
   const REQUEST_EVENT = "w2m2gcal:storage-request";
   const RESPONSE_EVENT = "w2m2gcal:storage-response";
@@ -181,6 +236,21 @@
   const BAND = "w2m2gcal-band";
   const ROOT_ID = "w2m2gcal-panel";
 
+  function formatUiText(template, values = {}) {
+    return String(template).replace(/\{(\w+)\}/g, (match, name) =>
+      Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : match,
+    );
+  }
+
+  function uiText(key, fallback, values = {}) {
+    const translate = globalThis.__w2m2gcalExtension && globalThis.__w2m2gcalI18n;
+    return typeof translate === "function" ? translate(key, fallback, values) : formatUiText(fallback, values);
+  }
+
+  function durationText(minutes) {
+    return uiText("label.durationMinutes", "{minutes} min", { minutes });
+  }
+
   // --- pure helpers (keep in sync with src/rank.mjs + src/gcal.mjs) ---
 
   function snapDuration(minutes, stepMinutes) {
@@ -191,17 +261,29 @@
   }
 
   function buildMatrixFromGlobals(g) {
-    if (!g || typeof g !== "object") return { ok: false, error: "Missing page globals" };
+    if (!g || typeof g !== "object") {
+      return { ok: false, error: uiText("error.missingPageGlobals", "Missing page globals") };
+    }
     const names = g.PeopleNames;
     const ids = g.PeopleIDs;
     const available = g.AvailableAtSlot;
     const times = g.TimeOfSlot;
     if (!Array.isArray(names) || !Array.isArray(ids) || !Array.isArray(available) || !Array.isArray(times)) {
-      return { ok: false, error: "Expected PeopleNames, PeopleIDs, AvailableAtSlot, TimeOfSlot arrays" };
+      return {
+        ok: false,
+        error: uiText(
+          "error.expectedGlobals",
+          "Expected PeopleNames, PeopleIDs, AvailableAtSlot, TimeOfSlot arrays",
+        ),
+      };
     }
-    if (names.length !== ids.length) return { ok: false, error: "PeopleNames/PeopleIDs length mismatch" };
-    if (available.length !== times.length) return { ok: false, error: "AvailableAtSlot/TimeOfSlot length mismatch" };
-    if (times.length === 0) return { ok: false, error: "No time slots on page" };
+    if (names.length !== ids.length) {
+      return { ok: false, error: uiText("error.peopleNamesIdsMismatch", "PeopleNames/PeopleIDs length mismatch") };
+    }
+    if (available.length !== times.length) {
+      return { ok: false, error: uiText("error.availableTimesMismatch", "AvailableAtSlot/TimeOfSlot length mismatch") };
+    }
+    if (times.length === 0) return { ok: false, error: uiText("error.noTimeSlots", "No time slots on page") };
 
     const people = ids.map((id, i) => ({ id: String(id), name: String(names[i] ?? id) }));
     const idSet = new Set(people.map((p) => p.id));
@@ -219,7 +301,7 @@
       return { epoch, attendees, index: i };
     });
     if (slots.some((s) => s.invalid || !Number.isFinite(s.epoch))) {
-      return { ok: false, error: "TimeOfSlot contains invalid timestamps" };
+      return { ok: false, error: uiText("error.invalidTimestamps", "TimeOfSlot contains invalid timestamps") };
     }
 
     let stepMinutes = 15;
@@ -357,13 +439,18 @@
 
   function selfCheckSlots(slots) {
     const sample = slots.filter((_, i) => i % Math.max(1, Math.floor(slots.length / 5)) === 0).slice(0, 5);
-    if (!sample.length) return { ok: false, error: "No slots to verify against the grid" };
+    if (!sample.length) {
+      return { ok: false, error: uiText("error.noSlotsToVerify", "No slots to verify against the grid") };
+    }
     for (const s of sample) {
       const el = document.getElementById("GroupTime" + s.epoch);
       if (!el) {
         return {
           ok: false,
-          error: "Could not match TimeOfSlot ids to GroupTime cells — page structure may have changed",
+          error: uiText(
+            "error.gridStructureChanged",
+            "Could not match TimeOfSlot ids to GroupTime cells — page structure may have changed",
+          ),
         };
       }
     }
@@ -725,7 +812,7 @@
     if (!root) {
       root = document.createElement("section");
       root.id = ROOT_ID;
-      root.setAttribute("aria-label", "when2meet to Google Calendar");
+      root.setAttribute("aria-label", uiText("aria.panel", "when2meet to Google Calendar"));
       document.body.appendChild(root);
       applySavedPosition(root);
     }
@@ -769,7 +856,7 @@
     const handle = root.querySelector(".w2m2gcal-drag");
     if (!handle || handle.dataset.dragBound) return;
     handle.dataset.dragBound = "1";
-    if (!handle.title) handle.title = "Drag to move";
+    if (!handle.title) handle.title = uiText("title.drag", "Drag to move");
     const isFab = handle.classList.contains("w2m2gcal-fab");
     handle.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
@@ -825,7 +912,7 @@
   function renderMinimized(root) {
     root.classList.add("w2m2gcal-minimized");
     applyMinimizedPosition(root);
-    root.innerHTML = `<button type="button" class="w2m2gcal-fab w2m2gcal-drag" aria-expanded="false" aria-label="Expand when2meet to Google Calendar" title="Open panel (drag to move)">${CAL_ICON}</button>`;
+    root.innerHTML = `<button type="button" class="w2m2gcal-fab w2m2gcal-drag" aria-expanded="false" aria-label="${escapeHtml(uiText("aria.expand", "Expand when2meet to Google Calendar"))}" title="${escapeHtml(uiText("title.openPanel", "Open panel (drag to move)"))}">${CAL_ICON}</button>`;
     enableDrag(root);
   }
 
@@ -839,8 +926,8 @@
     root.classList.remove("w2m2gcal-minimized");
     root.innerHTML = `
       <div class="w2m2gcal-chrome">
-        <h2 class="w2m2gcal-drag">when2meet → Google Calendar</h2>
-        <button type="button" class="w2m2gcal-min" aria-label="Minimize panel" title="Minimize">−</button>
+        <h2 class="w2m2gcal-drag">${escapeHtml(uiText("aria.panel", "when2meet → Google Calendar"))}</h2>
+        <button type="button" class="w2m2gcal-min" aria-label="${escapeHtml(uiText("aria.minimize", "Minimize panel"))}" title="${escapeHtml(uiText("title.minimize", "Minimize"))}">−</button>
       </div>
       <p class="err" role="alert">${escapeHtml(msg)}</p>`;
     applySavedPosition(root);
@@ -873,55 +960,56 @@
 
     let tiesHtml = "";
     if (candidates.length === 0) {
-      tiesHtml = `<p class="muted">No window where anyone is free for the full ${effective} minutes.</p>`;
+      tiesHtml = `<p class="muted">${escapeHtml(uiText("status.noWindow", "No window where anyone is free for the full {minutes} minutes.", { minutes: effective }))}</p>`;
     } else if (multi) {
       tiesHtml =
-        `<p class="muted">Tied at ${candidates[0].score} people — pick one:</p><ul class="ties">` +
+        `<p class="muted">${escapeHtml(uiText("status.tied", "Tied at {score} people — pick one:", { score: candidates[0].score }))}</p><ul class="ties">` +
         candidates
           .map((c, i) => {
             const label = formatPreviewRange(c.startEpoch, c.endEpoch, tz || "UTC");
             const pressed = selected === c ? "true" : "false";
-            return `<li><button type="button" data-idx="${i}" aria-pressed="${pressed}">${escapeHtml(label)} · ${c.score} free</button></li>`;
+            return `<li><button type="button" data-idx="${i}" aria-pressed="${pressed}">${escapeHtml(uiText("status.scoreFree", "{label} · {score} free", { label, score: c.score }))}</button></li>`;
           })
           .join("") +
         `</ul>`;
     } else {
-      tiesHtml = `<p class="muted">Best: ${escapeHtml(formatPreviewRange(candidates[0].startEpoch, candidates[0].endEpoch, tz || "UTC"))} · ${candidates[0].score} free</p>`;
+      const label = formatPreviewRange(candidates[0].startEpoch, candidates[0].endEpoch, tz || "UTC");
+      tiesHtml = `<p class="muted">${escapeHtml(uiText("status.best", "Best: {label} · {score} free", { label, score: candidates[0].score }))}</p>`;
     }
 
     const preview =
       selected && tz
-        ? `<p><strong>Preview:</strong> ${escapeHtml(formatPreviewRange(selected.startEpoch, selected.endEpoch, tz))}</p>`
+        ? `<p><strong>${escapeHtml(uiText("status.previewLabel", "Preview:"))}</strong> ${escapeHtml(formatPreviewRange(selected.startEpoch, selected.endEpoch, tz))}</p>`
         : selected && !tz
-          ? `<p class="err" role="alert">Could not resolve the grid display timezone — calendar open blocked.</p>`
+          ? `<p class="err" role="alert">${escapeHtml(uiText("status.timezoneBlocked", "Could not resolve the grid display timezone — calendar open blocked."))}</p>`
           : multi
-            ? `<p class="muted">Select a tied window (list or its grid time) to enable Google Calendar.</p>`
+            ? `<p class="muted">${escapeHtml(uiText("status.selectTied", "Select a tied window (list or its grid time) to enable Google Calendar."))}</p>`
             : "";
 
     const notice = panelNotice ? `<p class="err" role="alert">${escapeHtml(panelNotice)}</p>` : "";
 
     root.innerHTML = `
       <div class="w2m2gcal-chrome">
-        <h2 class="w2m2gcal-drag">when2meet → Google Calendar</h2>
-        <button type="button" class="w2m2gcal-min" aria-label="Minimize panel" title="Minimize">−</button>
+        <h2 class="w2m2gcal-drag">${escapeHtml(uiText("aria.panel", "when2meet → Google Calendar"))}</h2>
+        <button type="button" class="w2m2gcal-min" aria-label="${escapeHtml(uiText("aria.minimize", "Minimize panel"))}" title="${escapeHtml(uiText("title.minimize", "Minimize"))}">−</button>
       </div>
-      <div class="row" role="group" aria-label="Meeting duration">
+      <div class="row" role="group" aria-label="${escapeHtml(uiText("aria.meetingDuration", "Meeting duration"))}">
         ${PRESETS.map(
           (p) =>
-            `<button type="button" class="chip" data-dur="${p}" aria-pressed="${effective === p ? "true" : "false"}">${p} min</button>`,
+            `<button type="button" class="chip" data-dur="${p}" aria-pressed="${effective === p ? "true" : "false"}">${escapeHtml(durationText(p))}</button>`,
         ).join("")}
-        <label>Custom <input type="number" min="1" step="${stepMinutes}" id="w2m2gcal-custom" value="${durationMinutes}" aria-describedby="w2m2gcal-snap"></label>
+        <label>${escapeHtml(uiText("label.custom", "Custom"))} <input type="number" min="1" step="${stepMinutes}" id="w2m2gcal-custom" value="${durationMinutes}" aria-describedby="w2m2gcal-snap"></label>
       </div>
-      <p class="muted" id="w2m2gcal-snap">Effective duration: <strong>${effective} min</strong> (snapped to ${stepMinutes}-min grid)</p>
+      <p class="muted" id="w2m2gcal-snap">${escapeHtml(uiText("label.effectiveDurationPrefix", "Effective duration:"))} <strong id="w2m2gcal-effective">${escapeHtml(durationText(effective))}</strong> ${escapeHtml(uiText("label.snappedGrid", "(snapped to {step}-min grid)", { step: stepMinutes }))}</p>
       <div class="row muted">
-        <label><input type="checkbox" id="w2m2gcal-30" ${include30Starts ? "checked" : ""}> Include :30 starts</label>
-        <label><input type="checkbox" id="w2m2gcal-1545" ${include15_45Starts ? "checked" : ""}> Include :15 / :45 starts</label>
+        <label><input type="checkbox" id="w2m2gcal-30" ${include30Starts ? "checked" : ""}> ${escapeHtml(uiText("label.include30", "Include :30 starts"))}</label>
+        <label><input type="checkbox" id="w2m2gcal-1545" ${include15_45Starts ? "checked" : ""}> ${escapeHtml(uiText("label.include1545", "Include :15 / :45 starts"))}</label>
       </div>
       ${tiesHtml}
       ${preview}
       ${notice}
       <div class="row">
-        <button type="button" class="primary" id="w2m2gcal-open" ${canOpen ? "" : "disabled"}>Open Google Calendar</button>
+        <button type="button" class="primary" id="w2m2gcal-open" ${canOpen ? "" : "disabled"}>${escapeHtml(uiText("button.openCalendar", "Open Google Calendar"))}</button>
       </div>
     `;
 
@@ -956,8 +1044,8 @@
     if (custom) {
       const syncSnapLabel = () => {
         const eff = snapDuration(Number(custom.value), stepMinutes);
-        const strong = root.querySelector("#w2m2gcal-snap strong");
-        if (strong) strong.textContent = `${eff} min`;
+        const effectiveLabel = root.querySelector("#w2m2gcal-effective");
+        if (effectiveLabel) effectiveLabel.textContent = durationText(eff);
       };
       custom.addEventListener("input", syncSnapLabel);
       custom.addEventListener("change", () => {
@@ -990,7 +1078,7 @@
         });
         const win = window.open(url, "_blank", "noopener,noreferrer");
         if (!win) {
-          panelNotice = "Pop-up blocked — allow pop-ups for this site, then try again.";
+          panelNotice = uiText("notice.popupBlocked", "Pop-up blocked — allow pop-ups for this site, then try again.");
           renderPanelBody();
         }
       });
