@@ -39,10 +39,11 @@ test("publish workflow separates userscript and Chrome extension deploys", () =>
   assert.match(extensionDeploy, /fail_on_unmatched_files: true/);
 });
 
-test("pull requests check release packages before running tests", () => {
+test("pull requests run tests before checking release packages", () => {
   assert.match(CI_WORKFLOW, /pull_request:/);
   assert.match(CI_WORKFLOW, /deploy-check:\n\s+name: Check release packages/);
-  assert.match(CI_WORKFLOW, /test:\n\s+needs: deploy-check/);
+  assert.match(CI_WORKFLOW, /deploy-check:\n\s+name: Check release packages\n\s+needs: test/);
+  assert.doesNotMatch(CI_WORKFLOW, /test:\n\s+needs: deploy-check/);
   assert.match(CI_WORKFLOW, /npm run extension:build/);
   assert.match(CI_WORKFLOW, /zip -q -r "\$ARCHIVE" extension/);
   assert.match(CI_WORKFLOW, /unzip -tq "\$ARCHIVE"/);
