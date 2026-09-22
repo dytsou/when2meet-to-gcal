@@ -10,11 +10,16 @@ const CI_WORKFLOW = fs.readFileSync(
   new URL("../.github/workflows/ci.yml", import.meta.url),
   "utf8",
 );
+const PACKAGE_JSON = JSON.parse(
+  fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+);
 
 test("publish workflow separates userscript and Chrome extension deploys", () => {
   assert.match(PUBLISH_WORKFLOW, /jobs:\n\s+validate:/);
   assert.match(PUBLISH_WORKFLOW, /deploy-userscript:\n\s+needs: validate/);
   assert.match(PUBLISH_WORKFLOW, /deploy-chrome-extension:\n\s+needs: \[validate\]/);
+  assert.match(PUBLISH_WORKFLOW, /uses: pnpm\/action-setup@v6/);
+  assert.match(PUBLISH_WORKFLOW, /pnpm install --frozen-lockfile/);
   assert.equal(
     (PUBLISH_WORKFLOW.match(/uses: softprops\/action-gh-release@v3/g) || []).length,
     2,
@@ -31,7 +36,7 @@ test("publish workflow separates userscript and Chrome extension deploys", () =>
   const extensionDeploy = PUBLISH_WORKFLOW.slice(
     PUBLISH_WORKFLOW.indexOf("  deploy-chrome-extension:"),
   );
-  assert.match(PUBLISH_WORKFLOW, /npm run extension:build/);
+  assert.match(PUBLISH_WORKFLOW, /pnpm run extension:build/);
   assert.match(extensionDeploy, /ARCHIVE="when2meet-to-gcal-chrome-extension-v\$\{VERSION\}\.zip"/);
   assert.match(extensionDeploy, /zip -q -r "\$ARCHIVE" extension/);
   assert.match(extensionDeploy, /unzip -l "\$ARCHIVE" \| grep -F "extension\/manifest\.json"/);
@@ -40,11 +45,14 @@ test("publish workflow separates userscript and Chrome extension deploys", () =>
 });
 
 test("pull requests run tests before checking release packages", () => {
+  assert.match(PACKAGE_JSON.packageManager, /^pnpm@11\./);
   assert.match(CI_WORKFLOW, /pull_request:/);
   assert.match(CI_WORKFLOW, /deploy-check:\n\s+name: Check release packages/);
   assert.match(CI_WORKFLOW, /deploy-check:\n\s+name: Check release packages\n\s+needs: test/);
   assert.doesNotMatch(CI_WORKFLOW, /test:\n\s+needs: deploy-check/);
-  assert.match(CI_WORKFLOW, /npm run extension:build/);
+  assert.match(CI_WORKFLOW, /uses: pnpm\/action-setup@v6/);
+  assert.match(CI_WORKFLOW, /pnpm install --frozen-lockfile/);
+  assert.match(CI_WORKFLOW, /pnpm run extension:build/);
   assert.match(CI_WORKFLOW, /zip -q -r "\$ARCHIVE" extension/);
   assert.match(CI_WORKFLOW, /unzip -tq "\$ARCHIVE"/);
   assert.match(CI_WORKFLOW, /unzip -l "\$ARCHIVE" \| grep -F "extension\/manifest\.json"/);

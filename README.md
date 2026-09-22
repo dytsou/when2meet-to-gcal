@@ -8,17 +8,18 @@ Chrome extension and Tampermonkey userscript: on a [when2meet](https://www.when2
 
 The Chrome package is Manifest V3, uses only extension-local storage for the panel preferences, and runs only on `when2meet.com` result pages.
 
-1. Clone this repository and, with Node 24 or newer, build the checked-in extension runner:
+1. Clone this repository, install pnpm 11, and with Node 24 or newer build the checked-in extension runner:
 
    ```bash
-   npm run extension:build
+   pnpm install --frozen-lockfile
+   pnpm run extension:build
    ```
 
 2. Open `chrome://extensions`, turn on **Developer mode**, then click **Load unpacked**.
 3. Select this repository's `extension` directory.
 4. Open or reload a when2meet **Group** results page. The floating panel appears at the bottom-left by default.
 
-After pulling a project update, rerun `npm run extension:build` and click the extension's **Reload** button on `chrome://extensions`. The extension's preferences stay in `chrome.storage.local`; they do not import preferences saved by a userscript manager. The `extension/LICENSE` file carries the same GPL-3.0-or-later notice as the repository.
+After pulling a project update, rerun `pnpm run extension:build` and click the extension's **Reload** button on `chrome://extensions`. The extension's preferences stay in `chrome.storage.local`; they do not import preferences saved by a userscript manager. The `extension/LICENSE` file carries the same GPL-3.0-or-later notice as the repository.
 
 Published GitHub Releases also include `when2meet-to-gcal-chrome-extension-vX.Y.Z.zip`; unzip it and choose its `extension` directory in the **Load unpacked** picker.
 
@@ -38,12 +39,12 @@ After install, Tampermonkey checks `@updateURL` against GitHub `main`. Keep **`p
 
 ```bash
 # bump package.json version, then:
-npm run version:sync   # copy into when2meet-to-gcal.user.js
-npm run version:check  # verify match
+pnpm run version:sync   # copy into when2meet-to-gcal.user.js
+pnpm run version:check  # verify match
 
 # FAB icon lives in src/icons/; embed into the userscript after edits:
-npm run icons:sync
-npm run icons:check
+pnpm run icons:sync
+pnpm run icons:check
 ```
 
 Push to `main` runs **Publish**. CI validates once, then deploys the userscript and Chrome extension as ordered release stages. Each stage uploads one asset, so a failed extension package can be retried without rebuilding or redeploying the userscript. The resulting GitHub Release contains both `when2meet-to-gcal.user.js` and the load-unpacked Chrome extension ZIP.
@@ -79,9 +80,9 @@ Push to `main` runs **Publish**. CI validates once, then deploys the userscript 
 ## Automated tests
 
 ```bash
-npm test
-npm run check
-npm run version:check
+pnpm test
+pnpm run check
+pnpm run version:check
 ```
 
 CI runs the same on push/PR to `main` (Node 24). Covers continuous-overlap ranking, start-offset filtering, duration snap, extract validation, TEMPLATE URL encoding, and the Manifest V3 storage bridge/build freshness contract.
