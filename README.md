@@ -12,6 +12,8 @@ Chrome extension and Tampermonkey userscript: on a [when2meet](https://www.when2
 4. Select the extracted `extension` directory.
 5. Open or reload a when2meet **Group** results page. The floating panel appears at the bottom-left by default.
 
+The extension follows the browser language and currently supports English and Traditional Chinese (`zh-TW`). The Tampermonkey userscript remains English.
+
 
 ## Install with Tampermonkey (alternate)
 

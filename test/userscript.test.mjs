@@ -92,7 +92,7 @@ class FakeElement {
   }
 }
 
-function createFixture(slotEpochs = [0, 900, 1800, 2700], gridViewport = {}) {
+function createFixture(slotEpochs = [0, 900, 1800, 2700], gridViewport = {}, runtimeValues = {}) {
   const state = {
     pageScrollY: 0,
     nextFrame: 1,
@@ -202,6 +202,7 @@ function createFixture(slotEpochs = [0, 900, 1800, 2700], gridViewport = {}) {
       display: element.style.display || "block",
       position: element.style.position || "static",
     }),
+    ...runtimeValues,
   };
 
   vm.runInNewContext(USER_SCRIPT, context, { filename: "when2meet-to-gcal.user.js" });
@@ -209,6 +210,29 @@ function createFixture(slotEpochs = [0, 900, 1800, 2700], gridViewport = {}) {
 }
 
 describe("userscript grid highlighting", () => {
+  it("keeps the standalone userscript UI in English", () => {
+    const fixture = createFixture();
+    const panel = fixture.body.children.find((element) => element.id === "w2m2gcal-panel");
+
+    assert.ok(panel);
+    assert.match(panel.innerHTML, /Open Google Calendar/);
+    assert.doesNotMatch(panel.innerHTML, /開啟 Google 日曆/);
+  });
+
+  it("uses the extension translator when the MAIN-world bridge is present", () => {
+    const fixture = createFixture([0, 900, 1800, 2700], {}, {
+      __w2m2gcalExtension: true,
+      __w2m2gcalI18n: (key, fallback, values = {}) => {
+        if (key === "button.openCalendar") return "開啟 Google 日曆";
+        return String(fallback).replace(/\{(\w+)\}/g, (match, name) => values[name] ?? match);
+      },
+    });
+    const panel = fixture.body.children.find((element) => element.id === "w2m2gcal-panel");
+
+    assert.ok(panel);
+    assert.match(panel.innerHTML, /開啟 Google 日曆/);
+  });
+
   it("draws one red frame around the selected time range", () => {
     const fixture = createFixture([0, 900, 1800, 2700], {
       scrollTop: 40,

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "when2meet to Google Calendar",
-  "version": "0.1.10",
+  "version": "1.0.0",
   "description": "Highlight the best When2Meet windows and open a prefilled Google Calendar draft.",
   "permissions": ["storage"],
   "content_scripts": [
