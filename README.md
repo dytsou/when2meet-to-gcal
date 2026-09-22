@@ -1,10 +1,30 @@
 # when2meet → Google Calendar
 
-Tampermonkey userscript: on a [when2meet](https://www.when2meet.com) Group results page, pick a meeting duration (30 / 60 / 90 / 120 or custom), see the best **continuous full-attendance** windows highlighted on the native grid, resolve ties from a list, and open a prefilled Google Calendar event (TEMPLATE URL — no OAuth).
+Chrome extension and Tampermonkey userscript: on a [when2meet](https://www.when2meet.com) Group results page, pick a meeting duration (30 / 60 / 90 / 120 or custom), see the best **continuous full-attendance** windows highlighted on the native grid, resolve ties from a list, and open a prefilled Google Calendar event (TEMPLATE URL — no OAuth).
 
 **License:** [GPL-3.0-or-later](./LICENSE) (copyleft — derivatives must stay open source). Declared as `@license GPL-3.0-or-later` for Greasy Fork.
 
-## Install
+## Install in Chrome
+
+The Chrome package is Manifest V3, uses only extension-local storage for the panel preferences, and runs only on `when2meet.com` result pages.
+
+1. Clone this repository and, with Node 24 or newer, build the checked-in extension runner:
+
+   ```bash
+   npm run extension:build
+   ```
+
+2. Open `chrome://extensions`, turn on **Developer mode**, then click **Load unpacked**.
+3. Select this repository's `extension` directory.
+4. Open or reload a when2meet **Group** results page. The floating panel appears at the bottom-left by default.
+
+After pulling a project update, rerun `npm run extension:build` and click the extension's **Reload** button on `chrome://extensions`. The extension's preferences stay in `chrome.storage.local`; they do not import preferences saved by a userscript manager. The `extension/LICENSE` file carries the same GPL-3.0-or-later notice as the repository.
+
+Published GitHub Releases also include `when2meet-to-gcal-chrome-extension-vX.Y.Z.zip`; unzip it and choose its `extension` directory in the **Load unpacked** picker.
+
+Selecting **Open Google Calendar** opens Google with a prefilled TEMPLATE URL. That explicit click sends the event title, selected times, timezone, and page URL in the new-tab request to Google; the extension itself adds no service, OAuth flow, or background network request.
+
+## Install with Tampermonkey (alternate)
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/) (or a compatible userscript manager).
 2. Open the raw script URL (Tampermonkey should prompt to install):
@@ -26,9 +46,9 @@ npm run icons:sync
 npm run icons:check
 ```
 
-Push to `main` runs **Publish**: if tag `vX.Y.Z` does not exist yet, it creates a GitHub Release with `when2meet-to-gcal.user.js` attached.
+Push to `main` runs **Publish**. CI validates once, then deploys the userscript and Chrome extension as ordered release stages. Each stage uploads one asset, so a failed extension package can be retried without rebuilding or redeploying the userscript. The resulting GitHub Release contains both `when2meet-to-gcal.user.js` and the load-unpacked Chrome extension ZIP.
 
-### Local hot reload (optional, for development)
+### Tampermonkey local hot reload (optional, for development)
 
 1. Chrome → `chrome://extensions` → Tampermonkey → enable **Allow access to file URLs**.
 2. Create a tiny stub script in Tampermonkey that only `@require`s your checkout:
@@ -61,6 +81,7 @@ Push to `main` runs **Publish**: if tag `vX.Y.Z` does not exist yet, it creates 
 ```bash
 npm test
 npm run check
+npm run version:check
 ```
 
-CI runs the same on push/PR to `main` (Node 24). Covers continuous-overlap ranking, start-offset filtering, duration snap, extract validation, and TEMPLATE URL encoding.
+CI runs the same on push/PR to `main` (Node 24). Covers continuous-overlap ranking, start-offset filtering, duration snap, extract validation, TEMPLATE URL encoding, and the Manifest V3 storage bridge/build freshness contract.

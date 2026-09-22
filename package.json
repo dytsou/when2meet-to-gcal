@@ -14,8 +14,10 @@
     "node": ">=24"
   },
   "scripts": {
-    "test": "node --test test/rank.test.mjs test/gcal.test.mjs test/userscript.test.mjs",
-    "check": "node --check when2meet-to-gcal.user.js && node --check src/rank.mjs && node --check src/gcal.mjs && node scripts/embed-icon.mjs check",
+    "test": "node --test test/rank.test.mjs test/gcal.test.mjs test/userscript.test.mjs test/chrome-extension.test.mjs test/release-workflow.test.mjs",
+    "check": "node --check when2meet-to-gcal.user.js && node --check src/rank.mjs && node --check src/gcal.mjs && node --check extension/main-preamble.js && node --check extension/storage-bridge.js && node scripts/embed-icon.mjs check && node scripts/build-extension.mjs check",
+    "extension:build": "node scripts/build-extension.mjs build",
+    "extension:check": "node scripts/build-extension.mjs check",
     "version:check": "node scripts/version.mjs check",
     "version:sync": "node scripts/version.mjs sync",
     "icons:check": "node scripts/embed-icon.mjs check",
