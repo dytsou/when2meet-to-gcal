@@ -87,7 +87,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   deploy-chrome-extension:
-    needs: [validate, deploy-userscript]
+    needs: [validate]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
