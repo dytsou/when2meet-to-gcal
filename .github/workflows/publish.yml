@@ -1,9 +1,8 @@
 name: Publish
 
-# Userscript release: verify package.json ↔ user.js version, then create a
-# GitHub Release (tag vX.Y.Z) with when2meet-to-gcal.user.js attached.
-# Tampermonkey clients still update from @updateURL on main; the Release is
-# the versioned publish artifact.
+# Release the userscript and load-unpacked Chrome extension as versioned
+# GitHub Release assets. Tampermonkey clients still update from @updateURL on
+# main; the Release is the versioned publish artifact for both distributions.
 
 on:
   push:
@@ -11,7 +10,9 @@ on:
     paths:
       - "package.json"
       - "when2meet-to-gcal.user.js"
+      - "extension/**"
       - "src/**"
+      - "scripts/build-extension.mjs"
       - "scripts/version.mjs"
       - ".github/workflows/publish.yml"
   workflow_dispatch:
@@ -20,7 +21,7 @@ permissions:
   contents: write
 
 jobs:
-  publish:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -41,47 +42,35 @@ jobs:
           npm test
           npm run check
 
-      - name: Get package version
-        id: package-version
+  deploy-userscript:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get package metadata
+        id: package
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Current package version: $VERSION"
-
-      - name: Get package name
-        id: package-name
-        run: |
           NAME=$(node -p "require('./package.json').name")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
-          echo "Current package name: $NAME"
 
-      - name: Check if release tag exists
-        id: check-tag
-        run: |
-          VERSION="${{ steps.package-version.outputs.version }}"
-          TAG="v${VERSION}"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Tag $TAG already exists — skip release"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Tag $TAG is new — will create release"
-          fi
-
-      - name: Create GitHub Release
-        if: steps.check-tag.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
+      - name: Deploy userscript release asset
+        uses: softprops/action-gh-release@v3
         with:
-          tag_name: v${{ steps.package-version.outputs.version }}
-          name: v${{ steps.package-version.outputs.version }}
-          prerelease: ${{ contains(steps.package-version.outputs.version, 'beta') || contains(steps.package-version.outputs.version, 'alpha') || contains(steps.package-version.outputs.version, 'rc') }}
+          tag_name: v${{ steps.package.outputs.version }}
+          name: v${{ steps.package.outputs.version }}
+          prerelease: ${{ contains(steps.package.outputs.version, 'beta') || contains(steps.package.outputs.version, 'alpha') || contains(steps.package.outputs.version, 'rc') }}
           files: when2meet-to-gcal.user.js
+          fail_on_unmatched_files: true
           generate_release_notes: true
           draft: false
           body: |
-            ## ${{ steps.package-name.outputs.name }}@${{ steps.package-version.outputs.version }}
+            ## ${{ steps.package.outputs.name }}@${{ steps.package.outputs.version }}
 
-            Tampermonkey userscript release.
+            Tampermonkey userscript and Chrome extension release. Assets are deployed in separate CI stages so either distribution can be retried independently.
 
             ### Install / update
 
@@ -92,6 +81,46 @@ jobs:
             **This release asset:** download `when2meet-to-gcal.user.js` below, or open the raw URL after this tag is on `main`.
 
             After install, Tampermonkey updates when `@version` on `main` increases.
+
+            **Chrome extension:** download `when2meet-to-gcal-chrome-extension-v${{ steps.package.outputs.version }}.zip`, unzip it, then load the extracted `extension` directory from `chrome://extensions` with Developer mode enabled.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-chrome-extension:
+    needs: [validate, deploy-userscript]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Get package version
+        id: package
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Package Chrome extension
+        id: extension-package
+        run: |
+          VERSION="${{ steps.package.outputs.version }}"
+          ARCHIVE="when2meet-to-gcal-chrome-extension-v${VERSION}.zip"
+          npm run extension:build
+          zip -q -r "$ARCHIVE" extension
+          unzip -l "$ARCHIVE" | grep -F "extension/manifest.json"
+          echo "archive=$ARCHIVE" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy Chrome extension release asset
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ steps.package.outputs.version }}
+          files: ${{ steps.extension-package.outputs.archive }}
+          fail_on_unmatched_files: true
+          draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -99,11 +128,5 @@ jobs:
         if: always()
         run: |
           echo "## Publish summary"
-          echo "- package: ${{ steps.package-name.outputs.name }}@${{ steps.package-version.outputs.version }}"
-          if [ "${{ steps.check-tag.outputs.exists }}" = "true" ]; then
-            echo "- GitHub Release: skipped (tag already exists)"
-          elif [ "${{ steps.check-tag.outputs.exists }}" = "false" ]; then
-            echo "- GitHub Release: created v${{ steps.package-version.outputs.version }}"
-          else
-            echo "- GitHub Release: not evaluated"
-          fi
+          echo "- package version: ${{ steps.package.outputs.version }}"
+          echo "- Chrome extension asset: ${{ steps.extension-package.outputs.archive }}"
