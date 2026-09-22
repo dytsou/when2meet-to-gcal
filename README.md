@@ -80,9 +80,7 @@ Push to `main` runs **Publish**. CI validates once, then deploys the userscript 
 ## Automated tests
 
 ```bash
-pnpm test
-pnpm run check
-pnpm run version:check
+pnpm run ci:all
 ```
 
 CI runs the same on push/PR to `main` (Node 24). Covers continuous-overlap ranking, start-offset filtering, duration snap, extract validation, TEMPLATE URL encoding, and the Manifest V3 storage bridge/build freshness contract.

@@ -40,13 +40,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Sync check (package.json ↔ user.js)
-        run: pnpm run version:check
-
-      - name: Test
-        run: |
-          pnpm test
-          pnpm run check
+      - name: Run CI checks
+        run: pnpm run ci:all
 
   deploy-userscript:
     needs: validate
