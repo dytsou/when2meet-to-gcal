@@ -15,6 +15,8 @@ The Chrome package is Manifest V3, uses only extension-local storage for the pan
    pnpm run extension:build
    ```
 
+   To create and validate the release ZIP locally, run `pnpm run extension:package`. It produces `when2meet-to-gcal-chrome-extension-vX.Y.Z.zip`.
+
 2. Open `chrome://extensions`, turn on **Developer mode**, then click **Load unpacked**.
 3. Select this repository's `extension` directory.
 4. Open or reload a when2meet **Group** results page. The floating panel appears at the bottom-left by default.

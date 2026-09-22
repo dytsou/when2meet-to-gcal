@@ -111,20 +111,13 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Package Chrome extension
-        id: extension-package
-        run: |
-          VERSION="${{ steps.package.outputs.version }}"
-          ARCHIVE="when2meet-to-gcal-chrome-extension-v${VERSION}.zip"
-          pnpm run extension:build
-          zip -q -r "$ARCHIVE" extension
-          unzip -l "$ARCHIVE" | grep -F "extension/manifest.json"
-          echo "archive=$ARCHIVE" >> "$GITHUB_OUTPUT"
+        run: pnpm run extension:package
 
       - name: Deploy Chrome extension release asset
         uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.package.outputs.version }}
-          files: ${{ steps.extension-package.outputs.archive }}
+          files: when2meet-to-gcal-chrome-extension-v${{ steps.package.outputs.version }}.zip
           fail_on_unmatched_files: true
           draft: false
         env:
@@ -135,4 +128,4 @@ jobs:
         run: |
           echo "## Publish summary"
           echo "- package version: ${{ steps.package.outputs.version }}"
-          echo "- Chrome extension asset: ${{ steps.extension-package.outputs.archive }}"
+          echo "- Chrome extension asset: when2meet-to-gcal-chrome-extension-v${{ steps.package.outputs.version }}.zip"
