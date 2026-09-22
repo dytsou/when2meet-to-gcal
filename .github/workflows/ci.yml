@@ -9,7 +9,29 @@ permissions:
   contents: read
 
 jobs:
+  deploy-check:
+    name: Check release packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check userscript release asset
+        run: |
+          test -s when2meet-to-gcal.user.js
+          node --check when2meet-to-gcal.user.js
+      - name: Package Chrome extension
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          ARCHIVE="when2meet-to-gcal-chrome-extension-v${VERSION}.zip"
+          npm run extension:build
+          zip -q -r "$ARCHIVE" extension
+          unzip -tq "$ARCHIVE"
+          unzip -l "$ARCHIVE" | grep -F "extension/manifest.json"
+
   test:
+    needs: deploy-check
     runs-on: ubuntu-latest
     strategy:
       matrix:
