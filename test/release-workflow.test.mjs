@@ -15,11 +15,16 @@ const PACKAGE_JSON = JSON.parse(
 );
 
 test("publish workflow separates userscript and Chrome extension deploys", () => {
+  assert.equal(
+    PACKAGE_JSON.scripts["ci:all"],
+    "pnpm run version:check && pnpm run icons:check && pnpm test && pnpm run check",
+  );
   assert.match(PUBLISH_WORKFLOW, /jobs:\n\s+validate:/);
   assert.match(PUBLISH_WORKFLOW, /deploy-userscript:\n\s+needs: validate/);
   assert.match(PUBLISH_WORKFLOW, /deploy-chrome-extension:\n\s+needs: \[validate\]/);
   assert.match(PUBLISH_WORKFLOW, /uses: pnpm\/action-setup@v6/);
   assert.match(PUBLISH_WORKFLOW, /pnpm install --frozen-lockfile/);
+  assert.match(PUBLISH_WORKFLOW, /run: pnpm run ci:all/);
   assert.equal(
     (PUBLISH_WORKFLOW.match(/uses: softprops\/action-gh-release@v3/g) || []).length,
     2,
@@ -52,6 +57,7 @@ test("pull requests run tests before checking release packages", () => {
   assert.doesNotMatch(CI_WORKFLOW, /test:\n\s+needs: deploy-check/);
   assert.match(CI_WORKFLOW, /uses: pnpm\/action-setup@v6/);
   assert.match(CI_WORKFLOW, /pnpm install --frozen-lockfile/);
+  assert.match(CI_WORKFLOW, /run: pnpm run ci:all/);
   assert.match(CI_WORKFLOW, /pnpm run extension:build/);
   assert.match(CI_WORKFLOW, /zip -q -r "\$ARCHIVE" extension/);
   assert.match(CI_WORKFLOW, /unzip -tq "\$ARCHIVE"/);

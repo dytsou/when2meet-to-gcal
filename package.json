@@ -22,6 +22,7 @@
     "version:check": "node scripts/version.mjs check",
     "version:sync": "node scripts/version.mjs sync",
     "icons:check": "node scripts/embed-icon.mjs check",
-    "icons:sync": "node scripts/embed-icon.mjs sync"
+    "icons:sync": "node scripts/embed-icon.mjs sync",
+    "ci:all": "pnpm run version:check && pnpm run icons:check && pnpm test && pnpm run check"
   }
 }
