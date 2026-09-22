@@ -4,11 +4,7 @@ Chrome extension and Tampermonkey userscript: on a [when2meet](https://www.when2
 
 **License:** [GPL-3.0-or-later](./LICENSE) (copyleft — derivatives must stay open source). Declared as `@license GPL-3.0-or-later` for Greasy Fork.
 
-## Install in Chrome
-
-The Chrome package is Manifest V3, uses only extension-local storage for the panel preferences, and runs only on `when2meet.com` result pages.
-
-### Install the latest release
+## Install the latest release extension
 
 1. Open the [latest GitHub Release](https://github.com/dytsou/when2meet-to-gcal/releases/latest).
 2. Download the asset whose name starts with `when2meet-to-gcal-chrome-extension-v` and unzip it.
@@ -41,7 +37,7 @@ pnpm run icons:check
 
 Push to `main` runs **Publish**. CI validates once, then deploys the userscript and Chrome extension as ordered release stages. Each stage uploads one asset, so a failed extension package can be retried without rebuilding or redeploying the userscript. The resulting GitHub Release contains both `when2meet-to-gcal.user.js` and the load-unpacked Chrome extension ZIP.
 
-### Build locally
+## Build locally
 
 To build the checked-in extension runner locally, clone this repository, install pnpm 11, and use Node 24 or newer:
 
