@@ -26,13 +26,7 @@ jobs:
           test -s when2meet-to-gcal.user.js
           node --check when2meet-to-gcal.user.js
       - name: Package Chrome extension
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          ARCHIVE="when2meet-to-gcal-chrome-extension-v${VERSION}.zip"
-          pnpm run extension:build
-          zip -q -r "$ARCHIVE" extension
-          unzip -tq "$ARCHIVE"
-          unzip -l "$ARCHIVE" | grep -F "extension/manifest.json"
+        run: pnpm run extension:package
 
   test:
     runs-on: ubuntu-latest
