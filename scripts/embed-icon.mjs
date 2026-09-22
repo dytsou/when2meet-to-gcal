@@ -75,7 +75,7 @@ if (mode !== "check") {
 
 if (match[0] !== expected) {
   console.error(`icon mismatch: ${USER_JS} ≠ ${SVG_PATH}`);
-  console.error("fix with: npm run icons:sync");
+  console.error("fix with: pnpm run icons:sync");
   process.exit(1);
 }
 

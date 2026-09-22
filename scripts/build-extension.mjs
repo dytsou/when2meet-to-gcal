@@ -82,6 +82,6 @@ if (mode === "build") {
   process.exit(0);
 }
 
-if (read(outputPath) !== expectedRunner) fail(`${outputPath} is stale; run npm run extension:build`);
+if (read(outputPath) !== expectedRunner) fail(`${outputPath} is stale; run pnpm run extension:build`);
 if (read(extensionLicensePath) !== license) fail(`${extensionLicensePath} differs from ${licensePath}`);
 console.log("extension package is current");

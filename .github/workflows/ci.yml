@@ -15,9 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - name: Check userscript release asset
         run: |
           test -s when2meet-to-gcal.user.js
@@ -26,7 +29,7 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           ARCHIVE="when2meet-to-gcal-chrome-extension-v${VERSION}.zip"
-          npm run extension:build
+          pnpm run extension:build
           zip -q -r "$ARCHIVE" extension
           unzip -tq "$ARCHIVE"
           unzip -l "$ARCHIVE" | grep -F "extension/manifest.json"
@@ -38,10 +41,13 @@ jobs:
         node: [24]
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - run: npm run version:check
-      - run: npm run icons:check
-      - run: npm test
-      - run: npm run check
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run version:check
+      - run: pnpm run icons:check
+      - run: pnpm test
+      - run: pnpm run check

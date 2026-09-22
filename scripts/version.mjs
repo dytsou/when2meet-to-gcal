@@ -44,7 +44,7 @@ if (mode !== "check") {
 
 if (userVersion !== pkgVersion) {
   console.error(`version mismatch: package.json=${pkgVersion} ${USER_JS}=${userVersion}`);
-  console.error("fix with: npm run version:sync");
+  console.error("fix with: pnpm run version:sync");
   process.exit(1);
 }
 

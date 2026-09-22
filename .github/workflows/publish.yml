@@ -9,6 +9,7 @@ on:
     branches: [main]
     paths:
       - "package.json"
+      - "pnpm-lock.yaml"
       - "when2meet-to-gcal.user.js"
       - "extension/**"
       - "src/**"
@@ -29,18 +30,23 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: pnpm/action-setup@v6
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "24"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Sync check (package.json ↔ user.js)
-        run: npm run version:check
+        run: pnpm run version:check
 
       - name: Test
         run: |
-          npm test
-          npm run check
+          pnpm test
+          pnpm run check
 
   deploy-userscript:
     needs: validate
@@ -93,10 +99,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v6
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "24"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Get package version
         id: package
@@ -109,7 +120,7 @@ jobs:
         run: |
           VERSION="${{ steps.package.outputs.version }}"
           ARCHIVE="when2meet-to-gcal-chrome-extension-v${VERSION}.zip"
-          npm run extension:build
+          pnpm run extension:build
           zip -q -r "$ARCHIVE" extension
           unzip -l "$ARCHIVE" | grep -F "extension/manifest.json"
           echo "archive=$ARCHIVE" >> "$GITHUB_OUTPUT"
