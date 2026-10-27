@@ -14,6 +14,10 @@ const PACKAGE_JSON = JSON.parse(
   fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 );
 const NVMRC = fs.readFileSync(new URL("../.nvmrc", import.meta.url), "utf8").trim();
+const BUMP_WORKFLOW = fs.readFileSync(
+  new URL("../.github/workflows/bump-patch-version.yml", import.meta.url),
+  "utf8",
+);
 
 test("publish workflow separates userscript and Chrome extension deploys", () => {
   assert.equal(
@@ -71,4 +75,16 @@ test("pull requests run tests before checking release packages", () => {
   assert.match(CI_WORKFLOW, /pnpm run extension:package/);
   assert.match(PUBLISH_WORKFLOW, /node-version-file: \.nvmrc/);
   assert.doesNotMatch(PUBLISH_WORKFLOW, /node-version:/);
+});
+
+test("bump patch version workflow uses dytsou/release and syncs artifacts", () => {
+  assert.match(BUMP_WORKFLOW, /workflow_dispatch:/);
+  assert.match(BUMP_WORKFLOW, /uses: actions\/checkout@v7/);
+  assert.match(BUMP_WORKFLOW, /fetch-tags: true/);
+  assert.match(
+    BUMP_WORKFLOW,
+    /uses: dytsou\/release\/bump-patch-version@[0-9a-f]{40} # v1\./,
+  );
+  assert.match(BUMP_WORKFLOW, /node scripts\/version\.mjs sync/);
+  assert.match(BUMP_WORKFLOW, /pull-requests: write/);
 });
