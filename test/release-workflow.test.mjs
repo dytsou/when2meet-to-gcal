@@ -13,6 +13,7 @@ const CI_WORKFLOW = fs.readFileSync(
 const PACKAGE_JSON = JSON.parse(
   fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 );
+const NVMRC = fs.readFileSync(new URL("../.nvmrc", import.meta.url), "utf8").trim();
 
 test("publish workflow separates userscript and Chrome extension deploys", () => {
   assert.equal(
@@ -56,13 +57,18 @@ test("publish workflow separates userscript and Chrome extension deploys", () =>
 });
 
 test("pull requests run tests before checking release packages", () => {
-  assert.match(PACKAGE_JSON.packageManager, /^pnpm@11\./);
+  assert.match(PACKAGE_JSON.packageManager, /^pnpm@12\./);
+  assert.equal(PACKAGE_JSON.engines.node, NVMRC);
   assert.match(CI_WORKFLOW, /pull_request:/);
   assert.match(CI_WORKFLOW, /deploy-check:\n\s+name: Check release packages/);
   assert.match(CI_WORKFLOW, /deploy-check:\n\s+name: Check release packages\n\s+needs: test/);
   assert.doesNotMatch(CI_WORKFLOW, /test:\n\s+needs: deploy-check/);
   assert.match(CI_WORKFLOW, /uses: pnpm\/action-setup@v6/);
+  assert.match(CI_WORKFLOW, /node-version-file: \.nvmrc/);
+  assert.doesNotMatch(CI_WORKFLOW, /node-version:/);
   assert.match(CI_WORKFLOW, /pnpm install --frozen-lockfile/);
   assert.match(CI_WORKFLOW, /run: pnpm run ci:all/);
   assert.match(CI_WORKFLOW, /pnpm run extension:package/);
+  assert.match(PUBLISH_WORKFLOW, /node-version-file: \.nvmrc/);
+  assert.doesNotMatch(PUBLISH_WORKFLOW, /node-version:/);
 });

@@ -11,9 +11,9 @@
   },
   "type": "module",
   "engines": {
-    "node": ">=24"
+    "node": "24.22.1"
   },
-  "packageManager": "pnpm@11.25.0",
+  "packageManager": "pnpm@12.15.0",
   "scripts": {
     "test": "node --test test/rank.test.mjs test/gcal.test.mjs test/userscript.test.mjs test/chrome-extension.test.mjs test/release-workflow.test.mjs",
     "check": "node --check when2meet-to-gcal.user.js && node --check src/rank.mjs && node --check src/gcal.mjs && node --check extension/main-preamble.js && node --check extension/storage-bridge.js && node scripts/embed-icon.mjs check && node scripts/build-extension.mjs check",
