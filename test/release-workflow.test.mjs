@@ -35,11 +35,12 @@ test("publish workflow separates userscript and Chrome extension deploys", () =>
   assert.match(PUBLISH_WORKFLOW, /jobs:\n\s+validate:/);
   assert.match(PUBLISH_WORKFLOW, /deploy-userscript:\n\s+needs: validate/);
   assert.match(PUBLISH_WORKFLOW, /deploy-chrome-extension:\n\s+needs: \[validate\]/);
-  assert.match(PUBLISH_WORKFLOW, /uses: pnpm\/action-setup@v6/);
+  assert.match(PUBLISH_WORKFLOW, /uses: pnpm\/action-setup@[0-9a-f]{40} # v6\./);
   assert.match(PUBLISH_WORKFLOW, /pnpm install --frozen-lockfile/);
   assert.match(PUBLISH_WORKFLOW, /run: pnpm run ci:all/);
   assert.equal(
-    (PUBLISH_WORKFLOW.match(/uses: softprops\/action-gh-release@v3/g) || []).length,
+    (PUBLISH_WORKFLOW.match(/uses: softprops\/action-gh-release@[0-9a-f]{40} # v3\./g) || [])
+      .length,
     2,
   );
   assert.doesNotMatch(PUBLISH_WORKFLOW, /check-tag/);
@@ -67,7 +68,7 @@ test("pull requests run tests before checking release packages", () => {
   assert.match(CI_WORKFLOW, /deploy-check:\n\s+name: Check release packages/);
   assert.match(CI_WORKFLOW, /deploy-check:\n\s+name: Check release packages\n\s+needs: test/);
   assert.doesNotMatch(CI_WORKFLOW, /test:\n\s+needs: deploy-check/);
-  assert.match(CI_WORKFLOW, /uses: pnpm\/action-setup@v6/);
+  assert.match(CI_WORKFLOW, /uses: pnpm\/action-setup@[0-9a-f]{40} # v6\./);
   assert.match(CI_WORKFLOW, /node-version-file: \.nvmrc/);
   assert.doesNotMatch(CI_WORKFLOW, /node-version:/);
   assert.match(CI_WORKFLOW, /pnpm install --frozen-lockfile/);
@@ -79,7 +80,7 @@ test("pull requests run tests before checking release packages", () => {
 
 test("bump patch version workflow uses dytsou/release and syncs artifacts", () => {
   assert.match(BUMP_WORKFLOW, /workflow_dispatch:/);
-  assert.match(BUMP_WORKFLOW, /uses: actions\/checkout@v7/);
+  assert.match(BUMP_WORKFLOW, /uses: actions\/checkout@[0-9a-f]{40} # v7\./);
   assert.match(BUMP_WORKFLOW, /fetch-tags: true/);
   assert.match(
     BUMP_WORKFLOW,
@@ -87,4 +88,18 @@ test("bump patch version workflow uses dytsou/release and syncs artifacts", () =
   );
   assert.match(BUMP_WORKFLOW, /node scripts\/version\.mjs sync/);
   assert.match(BUMP_WORKFLOW, /pull-requests: write/);
+});
+
+test("all workflow actions are pinned to commit SHAs", () => {
+  for (const [name, source] of [
+    ["ci.yml", CI_WORKFLOW],
+    ["publish.yml", PUBLISH_WORKFLOW],
+    ["bump-patch-version.yml", BUMP_WORKFLOW],
+  ]) {
+    const uses = [...source.matchAll(/^\s+-?\s*uses:\s+(\S+)/gm)].map((m) => m[1]);
+    assert.ok(uses.length > 0, `${name}: expected uses entries`);
+    for (const ref of uses) {
+      assert.match(ref, /@[0-9a-f]{40}$/, `${name}: unpinned action ${ref}`);
+    }
+  }
 });
