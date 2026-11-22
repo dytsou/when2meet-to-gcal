@@ -22,7 +22,7 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - uses: dytsou/release/bump-patch-version@98055479dc1f0015d278ecd26b54ec6897d85eed # v1.3.6
+      - uses: dytsou/release/bump-patch-version@291dd276baf77a9770947c5b4149e6fc866b8120 # v1.3.9
         id: bump
 
       - name: Sync userscript and extension versions
